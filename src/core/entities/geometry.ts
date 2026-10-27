@@ -1,4 +1,13 @@
-import { type Arc, angleInArc, arcEndPoint, arcExtremePoints, arcMidPoint, arcStartPoint, distancePointToArc } from '../geometry/arc';
+import {
+  type Arc,
+  angleInArc,
+  arcEndPoint,
+  arcExtremePoints,
+  arcMidPoint,
+  arcStartPoint,
+  distancePointToArc,
+  normalizeAngle,
+} from '../geometry/arc';
 import { type Bounds, boundsFromPoints, boundsOfCircle, unionBounds } from '../geometry/bounds';
 import {
   type Circle,
@@ -122,8 +131,10 @@ export function transformEntity(entity: Entity, m: Matrix2D): Entity {
       return {
         ...entity,
         center: applyToPoint(m, entity.center),
-        startAngle: entity.startAngle + rotationAngle,
-        endAngle: entity.endAngle + rotationAngle,
+        // Keep angles in [0, 2π). Repeated rotations would otherwise drift to large
+        // values, which other CAD programs may read as out-of-range DXF angles.
+        startAngle: normalizeAngle(entity.startAngle + rotationAngle),
+        endAngle: normalizeAngle(entity.endAngle + rotationAngle),
       } satisfies ArcEntity;
     case 'polyline':
       return {

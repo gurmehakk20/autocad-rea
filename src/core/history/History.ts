@@ -5,6 +5,8 @@ export interface HistoryEntry {
   readonly forward: Mutation;
   /** Mutation that restores the drawing to its state before `forward`. */
   readonly backward: Mutation;
+  /** Edits that share a key and arrive back to back are merged into one undo step. */
+  readonly coalesceKey?: string;
 }
 
 /**
@@ -19,10 +21,27 @@ export class History {
 
   constructor(private readonly drawing: Drawing) {}
 
-  /** Applies a mutation, records it, and clears the redo stack. */
-  execute(forward: Mutation, label: string): HistoryEntry {
+  /**
+   * Applies a mutation, records it, and clears the redo stack.
+   *
+   * With a `coalesceKey`, a mutation that directly follows an entry with the same key
+   * is merged into it. This is for continuous edits such as dragging a colour picker,
+   * which would otherwise create dozens of undo steps. The merged entry keeps the
+   * original `backward`, so one undo restores the state before the first edit. Merging
+   * is only valid for mutations that set absolute values on the same targets, which
+   * `replace` and `put-layer` do.
+   */
+  execute(forward: Mutation, label: string, coalesceKey?: string): HistoryEntry {
+    const top = this.undoStack.at(-1);
+    if (coalesceKey && top?.coalesceKey === coalesceKey && this.redoStack.length === 0) {
+      this.drawing.apply(forward);
+      // A new entry object, so a save point that pointed at `top` correctly reads as dirty.
+      const merged: HistoryEntry = { label, forward, backward: top.backward, coalesceKey };
+      this.undoStack[this.undoStack.length - 1] = merged;
+      return merged;
+    }
     const backward = this.drawing.apply(forward);
-    const entry: HistoryEntry = { label, forward, backward };
+    const entry: HistoryEntry = coalesceKey ? { label, forward, backward, coalesceKey } : { label, forward, backward };
     this.undoStack.push(entry);
     this.redoStack.length = 0;
     return entry;

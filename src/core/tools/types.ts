@@ -64,8 +64,31 @@ export interface Tool {
   readonly wantsPoint: boolean;
 }
 
-/** Applies a mutation and reports failures to the command line instead of throwing. */
+/** Entities a mutation would add, including those inside a batch. */
+function insertedEntities(mutation: Mutation): Entity[] {
+  if (mutation.kind === 'insert') return [mutation.entity];
+  if (mutation.kind === 'batch') return mutation.mutations.flatMap(insertedEntities);
+  return [];
+}
+
+/**
+ * Applies a mutation and reports failures to the command line instead of throwing.
+ *
+ * New geometry is refused on a hidden or locked layer. Without this check the entity
+ * would be created, but the user could not see it (hidden) or select it (locked or hidden).
+ */
 export function commit(ctx: ToolContext, mutation: Mutation, label: string): boolean {
+  for (const entity of insertedEntities(mutation)) {
+    const layer = ctx.drawing.getLayer(entity.layer);
+    if (layer && !layer.visible) {
+      ctx.notify(`Layer "${layer.name}" is hidden. Show it or choose another layer before drawing.`);
+      return false;
+    }
+    if (layer?.locked) {
+      ctx.notify(`Layer "${layer.name}" is locked. Unlock it or choose another layer before drawing.`);
+      return false;
+    }
+  }
   try {
     ctx.history.execute(mutation, label);
     return true;

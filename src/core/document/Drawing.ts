@@ -42,6 +42,31 @@ export class DrawingError extends Error {
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
+/** Characters DXF does not allow in layer names, plus control characters. */
+// eslint-disable-next-line no-control-regex
+const FORBIDDEN_LAYER_CHARS = /[<>/\\":;?*|=`\u0000-\u001f]/;
+export const MAX_LAYER_NAME_LENGTH = 255;
+
+/**
+ * Returns why `name` cannot be used as a layer name, or null when it can.
+ * `existing` lists the current names. DXF layer names are case-insensitive, so a name
+ * that differs from another only by case counts as a duplicate. `renaming` is the layer
+ * being renamed, which may keep its own name apart from case.
+ */
+export function layerNameError(name: string, existing: readonly string[], renaming?: string): string | null {
+  const trimmed = name.trim();
+  if (trimmed === '') return 'Layer name cannot be empty.';
+  if (trimmed.length > MAX_LAYER_NAME_LENGTH) {
+    return `Layer names are limited to ${MAX_LAYER_NAME_LENGTH} characters.`;
+  }
+  if (FORBIDDEN_LAYER_CHARS.test(trimmed)) {
+    return 'Layer names cannot contain the characters < > / \\ " : ; ? * | = or `.';
+  }
+  const clash = existing.find((n) => n !== renaming && n.toLowerCase() === trimmed.toLowerCase());
+  if (clash) return `Layer "${clash}" already exists. Layer names are not case-sensitive.`;
+  return null;
+}
+
 export class Drawing {
   private readonly entityById = new Map<EntityId, Entity>();
   /** Creation order. Later entries draw on top and win hit tests. */
@@ -67,9 +92,14 @@ export class Drawing {
     return this.order.length;
   }
 
-  /** Stable id allocation. Ids are never reused, even after deletions or undo. */
+  /**
+   * Stable id allocation. Ids are never reused, even after deletions or undo.
+   * An id that is already present (for example from a hand-edited file) is skipped.
+   */
   nextId(): EntityId {
-    this.idCounter += 1;
+    do {
+      this.idCounter += 1;
+    } while (this.entityById.has(`e${this.idCounter}`));
     return `e${this.idCounter}`;
   }
 
@@ -198,7 +228,12 @@ export class Drawing {
       this.order.push(entity.id);
     }
     this.idCounter = 0;
-    this.setIdSequence(parts.idSequence);
+    // Trust the saved counter, but never let it sit behind ids that are already in use.
+    const highestUsed = parts.entities.reduce((max, e) => {
+      const match = /^e(\d+)$/.exec(e.id);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0);
+    this.setIdSequence(Math.max(parts.idSequence, highestUsed));
   }
 
   private requireEntity(id: EntityId): Entity {
