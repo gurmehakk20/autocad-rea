@@ -66,18 +66,27 @@ export function importDxf(text: string): DxfImportResult {
           addOrSkip(line, entities, () => skipped++, warnings);
           break;
         }
-        case 'CIRCLE': {
-          const circle = readCircle(record.pairs, common);
-          addOrSkip(circle, entities, () => skipped++, warnings);
-          break;
-        }
-        case 'ARC': {
-          const arc = readArc(record.pairs, common);
-          addOrSkip(arc, entities, () => skipped++, warnings);
-          break;
-        }
+        case 'CIRCLE':
+        case 'ARC':
         case 'LWPOLYLINE': {
-          const polylines = readPolyline(record.pairs, common);
+          // These entities live in their own coordinate system (OCS), set by the extrusion direction.
+          const plane = planeOf(record.pairs);
+          if (plane === 'tilted') {
+            const key = `${record.type} (tilted 3D plane)`;
+            unsupported.set(key, (unsupported.get(key) ?? 0) + 1);
+            skipped++;
+            break;
+          }
+          const mirrored = plane === 'mirrored';
+          if (record.type === 'CIRCLE') {
+            addOrSkip(readCircle(record.pairs, common, mirrored), entities, () => skipped++, warnings);
+            break;
+          }
+          if (record.type === 'ARC') {
+            addOrSkip(readArc(record.pairs, common, mirrored), entities, () => skipped++, warnings);
+            break;
+          }
+          const polylines = readPolyline(record.pairs, common, mirrored);
           approximatedBulges += polylines.approximated;
           if (polylines.entity) addOrSkip(polylines.entity, entities, () => skipped++, warnings);
           else skipped++;
@@ -101,7 +110,6 @@ export function importDxf(text: string): DxfImportResult {
     warnings.push(`${approximatedBulges} polyline arc segment(s) were approximated with straight segments.`);
   }
 
-  if (!layers.has(DEFAULT_LAYER_NAME)) layers.set(DEFAULT_LAYER_NAME, defaultLayer(DEFAULT_LAYER_NAME));
   const orderedLayers = [...layers.values()];
 
   const drawing = new Drawing();
@@ -128,7 +136,8 @@ interface Common {
 }
 
 function readCommon(pairs: Pair[], colourWarnings: Set<number>, warnings: string[]): Common {
-  const layer = firstValue(pairs, 8) ?? DEFAULT_LAYER_NAME;
+  // A missing or blank layer name means the default layer. A blank name cannot be a layer.
+  const layer = firstValue(pairs, 8)?.trim() || DEFAULT_LAYER_NAME;
   const trueColor = firstNumber(pairs, 420);
   if (trueColor !== undefined) return { layer, color: toHex(trueColor) };
   const index = firstNumber(pairs, 62);
@@ -153,28 +162,54 @@ function readLine(pairs: Pair[], common: Common): LineEntity {
   };
 }
 
-function readCircle(pairs: Pair[], common: Common): CircleEntity {
+/**
+ * How an entity's own coordinate system (OCS) relates to the drawing plane, from its
+ * extrusion direction (group codes 210, 220, 230).
+ *
+ * - `flat`: extrusion is +Z, the default. Coordinates are used as written.
+ * - `mirrored`: extrusion is -Z. AutoCAD's arbitrary-axis rule makes the OCS X axis point
+ *   along -X, so the entity appears mirrored left to right.
+ * - `tilted`: any other direction places the entity on a 3D plane, which a 2D drawing cannot represent.
+ */
+function planeOf(pairs: Pair[]): 'flat' | 'mirrored' | 'tilted' {
+  const nx = firstNumber(pairs, 210) ?? 0;
+  const ny = firstNumber(pairs, 220) ?? 0;
+  const nz = firstNumber(pairs, 230) ?? 1;
+  const tolerance = 1e-6;
+  if (Math.abs(nx) > tolerance || Math.abs(ny) > tolerance) return 'tilted';
+  if (nz > 0) return 'flat';
+  if (nz < 0) return 'mirrored';
+  return 'tilted'; // the zero vector is not a valid direction
+}
+
+function readCircle(pairs: Pair[], common: Common, mirrored: boolean): CircleEntity {
+  const center = readPoint(pairs, 10, 20, 'CIRCLE centre');
   return {
     id: '',
     type: 'circle',
     layer: common.layer,
     color: common.color,
-    center: readPoint(pairs, 10, 20, 'CIRCLE centre'),
+    center: mirrored ? vec2(-center.x, center.y) : center,
     radius: requireNumber(pairs, 40, 'CIRCLE radius'),
   };
 }
 
-function readArc(pairs: Pair[], common: Common): ArcEntity {
+function readArc(pairs: Pair[], common: Common, mirrored: boolean): ArcEntity {
   const degrees = (code: number, label: string) => (requireNumber(pairs, code, label) * Math.PI) / 180;
+  const center = readPoint(pairs, 10, 20, 'ARC centre');
+  const start = degrees(50, 'ARC start angle');
+  const end = degrees(51, 'ARC end angle');
   return {
     id: '',
     type: 'arc',
     layer: common.layer,
     color: common.color,
-    center: readPoint(pairs, 10, 20, 'ARC centre'),
+    center: mirrored ? vec2(-center.x, center.y) : center,
     radius: requireNumber(pairs, 40, 'ARC radius'),
-    startAngle: degrees(50, 'ARC start angle'),
-    endAngle: degrees(51, 'ARC end angle'),
+    // Reflecting across the Y axis maps angle a to π − a, and reverses the sweep direction,
+    // so the old end becomes the new start.
+    startAngle: mirrored ? Math.PI - end : start,
+    endAngle: mirrored ? Math.PI - start : end,
   };
 }
 
@@ -188,20 +223,22 @@ interface PolylineRead {
  * LWPOLYLINE. Bulge values describe arc segments. Those segments are flattened into
  * straight segments within 5 degrees, and the import reports how many were changed.
  */
-function readPolyline(pairs: Pair[], common: Common): PolylineRead {
+function readPolyline(pairs: Pair[], common: Common, mirrored: boolean): PolylineRead {
   const flags = firstNumber(pairs, 70) ?? 0;
   const closed = (flags & 1) === 1;
+  // A mirror reverses orientation, so x flips and every bulge changes sign.
+  const xSign = mirrored ? -1 : 1;
   const vertices: { p: Vec2; bulge: number }[] = [];
   for (const pair of pairs) {
     if (pair.code === 10) {
-      vertices.push({ p: vec2(parseNumber(pair.value, 'LWPOLYLINE x'), 0), bulge: 0 });
+      vertices.push({ p: vec2(xSign * parseNumber(pair.value, 'LWPOLYLINE x'), 0), bulge: 0 });
     } else if (pair.code === 20) {
       const last = vertices.at(-1);
       if (!last) throw new DxfFileError('LWPOLYLINE has a Y value without an X value.');
       vertices[vertices.length - 1] = { p: vec2(last.p.x, parseNumber(pair.value, 'LWPOLYLINE y')), bulge: last.bulge };
     } else if (pair.code === 42) {
       const last = vertices.at(-1);
-      if (last) vertices[vertices.length - 1] = { p: last.p, bulge: parseNumber(pair.value, 'LWPOLYLINE bulge') };
+      if (last) vertices[vertices.length - 1] = { p: last.p, bulge: xSign * parseNumber(pair.value, 'LWPOLYLINE bulge') };
     }
   }
   if (vertices.length < 2) return { entity: null, approximated: 0 };
@@ -286,7 +323,10 @@ function readUnits(header: Pair[], warnings: string[]): DrawingUnits {
 }
 
 function readLayers(tables: Pair[], warnings: string[]): Map<string, Layer> {
-  const layers = new Map<string, Layer>();
+  // Layer 0 always exists in DXF, even when the file has no LAYER table or leaves it out of the
+  // table. Seeding it first keeps it first in the list, and a table entry for it overrides this
+  // default in place. Without this, entities on layer 0 triggered a false "undefined layer" warning.
+  const layers = new Map<string, Layer>([[DEFAULT_LAYER_NAME, defaultLayer(DEFAULT_LAYER_NAME)]]);
   let table = '';
   for (const record of splitRecords(tables)) {
     if (record.type === 'TABLE') {
