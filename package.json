@@ -1,0 +1,44 @@
+{
+  "name": "opendraft",
+  "version": "0.1.0",
+  "description": "Lightweight browser-first 2D drafting application",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test",
+    "preview": "vite preview",
+    "bench": "vitest run --config vitest.bench.config.ts",
+    "lint": "oxlint -c .oxlintrc.json src tests",
+    "check": "npm run typecheck && npm run lint && npm test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "private": "true",
+  "dependencies": {
+    "@tarikjabiri/dxf": "^2.9.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "oxlint": "^1.90.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "compilerOptions": {
+    "types": "[\"node\",\"vite/client\"]"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
