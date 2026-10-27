@@ -1,0 +1,3 @@
+# Keep line endings consistent between Windows contributors and Linux CI.
+* text=auto eol=lf
+*.png binary
