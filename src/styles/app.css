@@ -1,0 +1,448 @@
+/* OpenDraft visual system. Colours are tokens so light/dark can be swapped later. */
+:root {
+  --bg: #0c0e12;
+  --panel: #13161c;
+  --panel-2: #181c24;
+  --border: #252a34;
+  --text: #d6dae3;
+  --muted: #7d8595;
+  --accent: #4da3ff;
+  --accent-ink: #0c0e12;
+  --warn: #ffd166;
+  --danger: #ff6b6b;
+  --focus: #9ec5ff;
+  --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: #3a4150;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+input,
+select {
+  background: #0f1217;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+
+kbd {
+  font-family: var(--mono);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  height: 100%;
+}
+
+/* ---- menu bar -------------------------------------------------------- */
+.menubar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  padding-right: 4px;
+}
+
+.button-group {
+  display: flex;
+  gap: 4px;
+}
+
+.toggle.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.file-name {
+  margin-left: auto;
+  color: var(--muted);
+  font-family: var(--mono);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- workspace -------------------------------------------------------- */
+.workspace {
+  display: grid;
+  grid-template-columns: 96px 1fr 260px;
+  min-height: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.tool {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+}
+
+.tool.active {
+  background: rgba(77, 163, 255, 0.16);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.tool-alias {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.viewport {
+  position: absolute;
+  inset: 0;
+}
+
+.viewport-canvas {
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.empty-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  background: rgba(19, 22, 28, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  max-width: 360px;
+}
+
+.empty-title {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.empty-hint p {
+  margin: 4px 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ---- sidebar panels ---------------------------------------------------- */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+}
+
+.panel {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.layer-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.layer-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto 28px auto;
+  gap: 4px;
+  align-items: center;
+}
+
+.layer-row.active .layer-select {
+  border-color: var(--accent);
+}
+
+.layer-select {
+  text-align: left;
+  min-width: 0;
+}
+
+.layer-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.mini {
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+.mini.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.swatch {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+}
+
+.inline-form {
+  display: flex;
+  gap: 4px;
+}
+
+.inline-form input {
+  flex: 1;
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.field > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+  font-family: var(--mono);
+}
+
+/* ---- command line and status bar -------------------------------------- */
+.command {
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  padding: 6px 10px 8px;
+}
+
+.command-history {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  max-height: 88px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.command-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.command-prompt {
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 48%;
+}
+
+.command-form input {
+  flex: 1;
+  font-family: var(--mono);
+}
+
+.statusbar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 4px 10px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.status-item {
+  white-space: nowrap;
+}
+
+.status-snap {
+  color: var(--warn);
+}
+
+.mono {
+  font-family: var(--mono);
+  color: var(--text);
+  display: inline-block;
+  min-width: 6ch;
+}
+
+/* ---- dialogs ----------------------------------------------------------- */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.dialog {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialog h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.report-list {
+  margin: 0;
+  padding-left: 18px;
+  overflow-y: auto;
+  color: var(--warn);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ---- narrow screens ---------------------------------------------------- */
+@media (max-width: 1000px) {
+  .workspace {
+    grid-template-columns: 64px 1fr 220px;
+  }
+  .tool-label {
+    display: none;
+  }
+}
