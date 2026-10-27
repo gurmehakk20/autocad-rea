@@ -74,6 +74,7 @@ The bottom command line accepts tool names, aliases, coordinates and numbers. It
 | `Ctrl+A` | Select all |
 | `Ctrl+N`, `Ctrl+O`, `Ctrl+S`, `Ctrl+I` | New, open, save, import DXF |
 | `F3`, `F7`, `F8`, `F9` | Object snap, grid display, ortho, grid snap |
+| Spacing field in the menu bar | Grid spacing in drawing units (must be positive) |
 | Middle mouse drag, or Space + drag | Pan |
 | Mouse wheel | Zoom at the pointer |
 | Drag left to right | Window selection (fully enclosed) |
@@ -84,7 +85,8 @@ The bottom command line accepts tool names, aliases, coordinates and numbers. It
 
 - The layer panel sets the active layer, which new entities use. Double-click a layer name to rename it (layer 0 cannot be renamed or deleted).
 - Deleting a layer moves its entities to layer 0 in one undo step.
-- Locked and hidden layers cannot be selected, snapped to or edited.
+- Locked and hidden layers cannot be selected, snapped to or edited. New geometry is refused on a hidden or locked active layer, with a message that names the layer.
+- Layer names follow DXF's rules: no `< > /  " : ; ? * | =` or backtick, at most 255 characters, and unique ignoring case (`Walls` and `walls` are the same layer in DXF).
 - The properties panel changes the layer and colour of the selection. "By layer" makes an entity follow its layer colour.
 
 ## File formats
@@ -98,6 +100,12 @@ JSON, with `format: "opendraft-drawing"` and `version: 1`. It stores units, laye
 **Export** writes an AutoCAD DXF with `$INSUNITS`, a LAYER table, and these entities: LINE, CIRCLE, ARC, LWPOLYLINE (open or closed).
 
 **Import** reads the same entity types, plus `$INSUNITS` and the LAYER table. Anything else is skipped and listed in an import report. Polyline bulge arcs are approximated with straight segments within 5 degrees, and the report says how many were approximated.
+
+Other import rules:
+
+- Entities drawn on a mirrored plane (extrusion direction −Z) are mirrored as AutoCAD displays them. Entities on any other tilted 3D plane cannot be represented in a 2D drawing, so they are skipped and reported.
+- A blank layer name means layer 0, and layer 0 always exists even if the file has no layer table.
+- If a file cannot be opened or imported, a dialog gives the reason and says your current drawing is unchanged.
 
 Colour notes:
 
@@ -122,7 +130,7 @@ Round-trip behaviour is covered by tests that use a hand-written DXF fixture (`t
 - **DXF:** the reader is not a general DXF parser. Text, dimensions, hatches, blocks, inserts, splines, ellipses and images are skipped and reported.
 - **Colours:** layer colours outside the seven primary AutoCAD colours are approximated on export.
 - **Saving:** Save downloads a file. OpenDraft does not keep a file handle, so Save always writes a new download.
-- **Performance:** interaction is measured up to 10,000 entities (see [docs/BENCHMARKS.md](docs/BENCHMARKS.md)). Larger drawings have not been tested. Picking and snapping scan every entity.
+- **Performance:** geometry operations are measured up to 10,000 entities (see [docs/BENCHMARKS.md](docs/BENCHMARKS.md)), and a 5,000-entity drawing is covered by a browser test. Larger drawings have not been tested. Picking and snapping scan every entity.
 - **Browsers and devices:** automated browser tests run in Chromium only. Touch input is not supported.
 - **Compatibility:** OpenDraft does not claim compatibility with AutoCAD files beyond the subset described above.
 
@@ -133,7 +141,7 @@ npm test             # unit and integration tests (Vitest)
 npm run typecheck    # TypeScript, strict mode
 npm run lint         # oxlint
 npm run check        # all of the above
-npm run e2e          # browser workflows (Playwright)
+npm run e2e          # browser workflows and the platform audit suite (Playwright)
 npm run bench        # timing baselines, writes docs/BENCHMARKS.md
 ```
 
@@ -155,7 +163,7 @@ tests/            unit, integration, fixtures, e2e, bench
 docs/             research, architecture, roadmap, benchmarks, decision records
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module rules.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module rules, and [docs/AUDIT-REPORT.md](docs/AUDIT-REPORT.md) for the latest platform audit.
 
 ## Contributing
 

@@ -13,17 +13,17 @@ Each value is the median of 15 samples of 10 calls, after 3 warm-up runs.
 
 | Entities | Operation | Median ms |
 |---|---|---|
-| 1000 | pick entity | 0.098 |
-| 1000 | object snap | 0.231 |
-| 1000 | window select 50x50 | 0.088 |
-| 1000 | export DXF | 1.431 |
-| 1000 | import DXF | 1.976 |
-| 1000 | serialize JSON | 0.689 |
-| 1000 | parse JSON | 1.276 |
-| 10000 | pick entity | 0.680 |
-| 10000 | object snap | 1.932 |
-| 10000 | window select 50x50 | 1.186 |
-| 10000 | export DXF | 15.862 |
-| 10000 | import DXF | 19.738 |
-| 10000 | serialize JSON | 6.248 |
-| 10000 | parse JSON | 10.111 |
+| 1000 | pick entity | 0.106 |
+| 1000 | object snap | 0.193 |
+| 1000 | window select 50x50 | 0.060 |
+| 1000 | export DXF | 1.509 |
+| 1000 | import DXF | 1.775 |
+| 1000 | serialize JSON | 0.376 |
+| 1000 | parse JSON | 1.317 |
+| 10000 | pick entity | 0.825 |
+| 10000 | object snap | 1.552 |
+| 10000 | window select 50x50 | 0.605 |
+| 10000 | export DXF | 13.356 |
+| 10000 | import DXF | 21.172 |
+| 10000 | serialize JSON | 6.783 |
+| 10000 | parse JSON | 13.533 |

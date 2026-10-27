@@ -23,12 +23,12 @@ Section numbers follow the project brief.
 
 - [x] Dark drafting workspace
 - [x] Grid rendering (adaptive spacing, line cap)
-- [~] Configurable grid spacing: the session supports it, but there is no UI control yet
+- [x] Configurable grid spacing (menu bar field, validated)
 - [x] Pan (middle drag, Space+drag) and zoom at pointer
 - [x] Cursor and coordinate display (status bar)
 - [x] High-DPI rendering
 - [x] Responsive resize
-- [ ] Viewport behaviour checked on smaller laptop sizes (only 1440×900 tested)
+- [x] Layout checked at 1440×900, 1280×720 and 1024×768 (no horizontal scroll)
 
 ## 6B. Drawing entities
 
@@ -89,7 +89,8 @@ Section numbers follow the project brief.
 - [x] Entity-to-layer assignment
 - [x] Entity colour (or ByLayer)
 - [~] Entity property editing: layer and colour only, not geometry (endpoints, radius, angles)
-- [x] Locked and hidden entities cannot be edited or selected
+- [x] Locked and hidden entities cannot be edited or selected, and geometry cannot be created on a hidden or locked layer
+- [x] Layer names follow DXF rules and are unique ignoring case
 
 ## 6G. History and persistence
 
@@ -108,6 +109,8 @@ Section numbers follow the project brief.
 - [x] Layers and colours
 - [x] Drawing units (`$INSUNITS`)
 - [x] Import report for unsupported entities and approximations
+- [x] Failed open or import shows a dialog and leaves the drawing unchanged
+- [x] DXF mirrored-plane entities are mirrored. Tilted-plane entities are skipped and reported
 - [x] Export report for approximated layer colours
 - [~] Round trips with real drawings: only a hand-written fixture and generated drawings are tested. No file from AutoCAD or another CAD tool has been tested.
 - [ ] Second-reader validation of exported DXF
@@ -131,7 +134,8 @@ Section numbers follow the project brief.
 - [x] Nearly parallel and tangent cases
 - [x] Invalid arcs
 - [x] Floating-point tolerance (documented, tested from 1e-3 to 1e12)
-- [x] Empty and malformed files
+- [x] Empty and malformed files (4,000 mutated DXF and 4,000 corrupted native files, seeded)
+- [x] Random-input property tests for intersections, arcs and transforms
 - [x] Tolerances and unit assumptions documented (README)
 
 ## 8. Rendering and performance
@@ -141,7 +145,7 @@ Section numbers follow the project brief.
 - [x] View culling by bounds
 - [x] Benchmark with repeatable script (`npm run bench`, writes `docs/BENCHMARKS.md`)
 - [~] Benchmarks cover 1,000 and 10,000 entities only
-- [ ] Browser frame-time measurement
+- [~] Browser frame time: measured for one 5,000-entity drawing only, and paced by the display refresh
 - [ ] Spatial index for picking, snapping, and selection
 - [~] Bottlenecks identified (entity-list copies, O(n) scans) and recorded in ARCHITECTURE.md; not yet fixed
 
@@ -155,7 +159,7 @@ Section numbers follow the project brief.
 - [x] Tooltips with shortcuts
 - [x] Restrained colours and high-contrast geometry
 - [x] Keyboard-friendly
-- [ ] Accessibility pass (focus order, screen reader labels on canvas)
+- [~] Accessibility: every control has an accessible name, and the modal dialog handles Escape, focus trap and focus restore. Screen reader behaviour and full focus order are not tested
 
 ## 10. Open-source quality
 
@@ -189,6 +193,15 @@ Section numbers follow the project brief.
 - [x] Automated tests cover core geometry and document mutations
 - [x] README explains setup, features, limits, and testing
 - [~] No known critical errors: none found in the tested workflows, but only Chromium was tested
+
+## Platform audit (2026-10-28)
+
+- [x] Behavioural audit with a Playwright suite (40 tests), fuzzing, property tests and a scale test
+- [x] Root cause analysis and fixes for 18 defects, with regression tests for 17. See [AUDIT-REPORT.md](AUDIT-REPORT.md)
+- [ ] REA analysis of the production bundle: timed out at 5 and 20 minutes, no result
+- [ ] Spatial index (picking and snapping still scan every entity)
+- [ ] Bounded history
+- [ ] Firefox and Safari testing
 
 ## Open decisions and housekeeping
 
