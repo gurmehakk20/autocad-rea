@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CommandLine } from '../components/command-line/CommandLine';
 import { ReportDialog } from '../components/dialogs/ReportDialog';
 import { LayerPanel } from '../components/panels/LayerPanel';
@@ -14,6 +14,9 @@ import { useShortcuts } from './useShortcuts';
 export function App() {
   const [report, setReport] = useState<ReportContent | null>(null);
   const version = useSessionVersion();
+
+  // Stable identity, so the dialog's keyboard effect is not torn down on every re-render.
+  const closeReport = useCallback(() => setReport(null), []);
 
   useShortcuts(setReport);
 
@@ -54,7 +57,7 @@ export function App() {
       </div>
       <CommandLine />
       <StatusBar />
-      {report && <ReportDialog content={report} onClose={() => setReport(null)} />}
+      {report && <ReportDialog content={report} onClose={closeReport} />}
     </div>
   );
 }

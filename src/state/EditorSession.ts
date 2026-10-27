@@ -1,4 +1,12 @@
-import { DEFAULT_LAYER_NAME, Drawing, type DrawingUnits, type Layer, type Mutation } from '../core/document/Drawing';
+import {
+  DEFAULT_LAYER_NAME,
+  Drawing,
+  DrawingError,
+  type DrawingUnits,
+  type Layer,
+  type Mutation,
+  layerNameError,
+} from '../core/document/Drawing';
 import { unionEntityBounds } from '../core/entities/geometry';
 import type { EntityId } from '../core/entities/types';
 import { History } from '../core/history/History';
@@ -19,7 +27,21 @@ const DRAG_START_PX = 4;
 /** Capture radius for picking and snapping, in screen pixels. */
 const PICK_PX = 8;
 const LOG_LIMIT = 200;
+/** Wheel deltas are clamped to this many pixels so one huge event cannot jump the view. */
+const WHEEL_MAX_DELTA = 200;
+/** Natural-log zoom per wheel pixel. A 100 px notch zooms by about 16%. */
+const WHEEL_SENSITIVITY = 0.0015;
 const LAYER_COLORS = ['#e6e6e6', '#ff5f56', '#ffbd2e', '#27c93f', '#4da3ff', '#c678dd', '#56d4dd', '#f0a070'];
+
+/**
+ * Turns anything thrown while loading a file into a message for the user. Expected
+ * file-format errors carry a readable message. Anything else is an unexpected failure,
+ * which must still be reported and must never leave the app half-loaded.
+ */
+function describeLoadError(error: unknown, expected: new (message: string) => Error): string {
+  if (error instanceof expected || error instanceof DrawingError) return error.message;
+  return `Unexpected problem while reading the file (${error instanceof Error ? error.message : String(error)}).`;
+}
 
 export interface RubberBand {
   readonly a: Vec2;
@@ -205,11 +227,32 @@ export class EditorSession {
     this.afterToolAction();
   }
 
-  /** Mouse wheel. Positive deltaY zooms out, matching common CAD behaviour. */
+  /**
+   * Wheel zoom. Positive `deltaY` (in pixels) zooms out. The zoom factor grows with the
+   * size of the delta, so a mouse wheel notch (about 100) zooms by roughly 16% and a
+   * trackpad's many small deltas zoom smoothly instead of jumping 15% per event.
+   */
   wheel(screen: Vec2, deltaY: number): void {
-    const factor = deltaY < 0 ? 1.15 : 1 / 1.15;
-    this.cameraState = zoomAtPixel(this.cameraState, this.view, screen.x, screen.y, factor);
+    const clamped = Math.max(-WHEEL_MAX_DELTA, Math.min(WHEEL_MAX_DELTA, deltaY));
+    this.cameraState = zoomAtPixel(this.cameraState, this.view, screen.x, screen.y, Math.exp(-clamped * WHEEL_SENSITIVITY));
     this.cursorWorld = this.toWorld(screen);
+    this.snapState = this.toolState.wantsPoint ? this.resolvePoint(this.cursorWorld) : null;
+    // The zoom readout in the status bar is drawn from the UI channel, so notify both.
+    this.emitAll();
+  }
+
+  /** The pointer left the canvas, so the crosshair and coordinate readout should clear. */
+  pointerLeave(): void {
+    if (this.pressed || this.panning) return; // pointer capture keeps the gesture alive
+    this.cursorWorld = null;
+    this.snapState = null;
+    this.emitView();
+  }
+
+  /** The browser cancelled the pointer (touch interrupted, window lost focus). Abandon any gesture. */
+  pointerCancel(): void {
+    this.pressed = null;
+    this.panning = null;
     this.emitView();
   }
 
@@ -403,9 +446,9 @@ export class EditorSession {
   }
 
   /** Runs a mutation through history, reporting any validation failure to the log. */
-  private execute(mutation: Mutation, label: string): boolean {
+  private execute(mutation: Mutation, label: string, coalesceKey?: string): boolean {
     try {
-      this.history.execute(mutation, label);
+      this.history.execute(mutation, label, coalesceKey);
       return true;
     } catch (error) {
       this.message(error instanceof Error ? error.message : 'Operation failed.');
@@ -431,15 +474,16 @@ export class EditorSession {
       const entity = this.drawing.getEntity(id)!;
       return { kind: 'replace', entity: { ...entity, color } } as Mutation;
     });
-    if (this.execute({ kind: 'batch', mutations }, 'Change colour')) this.emitAll();
+    // Dragging a colour picker fires many events. They merge into one undo step per selection.
+    if (this.execute({ kind: 'batch', mutations }, 'Change colour', `entity-colour:${ids.join(',')}`)) this.emitAll();
   }
 
   // ---- layers ----------------------------------------------------------------
 
   addLayer(name: string): void {
     const trimmed = name.trim();
-    if (trimmed === '') return this.message('Layer name cannot be empty.');
-    if (this.drawing.getLayer(trimmed)) return this.message(`Layer "${trimmed}" already exists.`);
+    const problem = layerNameError(trimmed, this.layerNames());
+    if (problem) return this.message(problem);
     const color = LAYER_COLORS[this.drawing.layers().length % LAYER_COLORS.length]!;
     const layer: Layer = { name: trimmed, color, visible: true, locked: false };
     if (this.execute({ kind: 'put-layer', layer }, 'New layer')) {
@@ -452,16 +496,22 @@ export class EditorSession {
     const current = this.drawing.getLayer(name);
     if (!current) return;
     const next: Layer = { ...current, ...patch };
-    if (this.execute({ kind: 'put-layer', layer: next }, 'Layer properties')) this.emitAll();
+    // Colour changes from a picker arrive as a stream, so they merge into one undo step per layer.
+    const key = patch.color !== undefined && patch.visible === undefined && patch.locked === undefined ? `layer-colour:${name}` : undefined;
+    if (this.execute({ kind: 'put-layer', layer: next }, 'Layer properties', key)) {
+      // Hiding or locking a layer makes its entities uneditable, so they must leave the selection.
+      this.selection.prune(this.drawing);
+      this.emitAll();
+    }
   }
 
   renameLayer(oldName: string, newName: string): void {
     const trimmed = newName.trim();
     const current = this.drawing.getLayer(oldName);
     if (!current || trimmed === oldName) return;
-    if (trimmed === '') return this.message('Layer name cannot be empty.');
-    if (this.drawing.getLayer(trimmed)) return this.message(`Layer "${trimmed}" already exists.`);
     if (oldName === DEFAULT_LAYER_NAME) return this.message('Layer 0 cannot be renamed.');
+    const problem = layerNameError(trimmed, this.layerNames(), oldName);
+    if (problem) return this.message(problem);
     const mutations: Mutation[] = [{ kind: 'put-layer', layer: { ...current, name: trimmed } }];
     for (const entity of this.drawing.entitiesOnLayer(oldName)) {
       mutations.push({ kind: 'replace', entity: { ...entity, layer: trimmed } });
@@ -523,27 +573,36 @@ export class EditorSession {
     this.message('New drawing.');
   }
 
-  loadNativeText(text: string, fileName: string): void {
+  /**
+   * Opens a native drawing. On failure the current drawing is left untouched and the
+   * reason is returned so the UI can show it. Returns null on success.
+   */
+  loadNativeText(text: string, fileName: string): string | null {
     try {
       this.replaceDrawing(parseDrawing(text), fileName);
       this.message(`Opened ${fileName}.`);
+      return null;
     } catch (error) {
-      if (error instanceof DrawingFileError) this.message(`Cannot open ${fileName}: ${error.message}`);
-      else throw error;
+      const reason = describeLoadError(error, DrawingFileError);
+      this.message(`Cannot open ${fileName}: ${reason}`);
+      return reason;
     }
   }
 
-  /** Imports DXF. Returns the warnings so the UI can show them in a report. */
-  loadDxfText(text: string, fileName: string): string[] {
+  /**
+   * Imports DXF. `warnings` lists data that was skipped or approximated. `error` is set
+   * when the file could not be imported, in which case the current drawing is unchanged.
+   */
+  loadDxfText(text: string, fileName: string): { warnings: string[]; error: string | null } {
     try {
       const result = importDxf(text);
       this.replaceDrawing(result.drawing, null);
       this.message(`Imported ${result.imported} entities from ${fileName}; ${result.skipped} skipped.`);
-      return result.warnings;
+      return { warnings: result.warnings, error: null };
     } catch (error) {
-      if (error instanceof DxfFileError) this.message(`Cannot import ${fileName}: ${error.message}`);
-      else throw error;
-      return [];
+      const reason = describeLoadError(error, DxfFileError);
+      this.message(`Cannot import ${fileName}: ${reason}`);
+      return { warnings: [], error: reason };
     }
   }
 

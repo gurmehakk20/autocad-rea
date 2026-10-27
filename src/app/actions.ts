@@ -4,7 +4,11 @@ import { downloadText, pickTextFile } from './files';
 export interface ReportContent {
   readonly title: string;
   readonly lines: readonly string[];
+  /** Replaces the default explanation under the title. */
+  readonly intro?: string;
 }
+
+const FAILED_LOAD_INTRO = 'Nothing was changed. Your current drawing is still open.';
 
 export const NATIVE_EXTENSION = '.opendraft.json';
 const NATIVE_MIME = 'application/json';
@@ -21,19 +25,24 @@ export function newDrawing(): void {
   session.newDocument();
 }
 
-export async function openNative(): Promise<void> {
+export async function openNative(report: (content: ReportContent) => void): Promise<void> {
   if (!confirmDiscard()) return;
   const file = await pickTextFile(`${NATIVE_EXTENSION},.json`);
   if (!file) return;
-  session.loadNativeText(file.text, file.name);
+  const error = session.loadNativeText(file.text, file.name);
+  if (error) report({ title: `Cannot open ${file.name}`, lines: [error], intro: FAILED_LOAD_INTRO });
 }
 
 export async function openDxf(report: (content: ReportContent) => void): Promise<void> {
   if (!confirmDiscard()) return;
   const file = await pickTextFile('.dxf');
   if (!file) return;
-  const warnings = session.loadDxfText(file.text, file.name);
-  if (warnings.length > 0) report({ title: `Import report: ${file.name}`, lines: warnings });
+  const { warnings, error } = session.loadDxfText(file.text, file.name);
+  if (error) {
+    report({ title: `Cannot import ${file.name}`, lines: [error], intro: FAILED_LOAD_INTRO });
+  } else if (warnings.length > 0) {
+    report({ title: `Import report: ${file.name}`, lines: warnings });
+  }
 }
 
 export function saveNative(): void {

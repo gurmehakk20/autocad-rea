@@ -48,17 +48,25 @@ export function CanvasViewport() {
       session.pointerDown(localPoint(canvas, e), e.button, e.shiftKey);
     };
     const onUp = (e: PointerEvent) => session.pointerUp(localPoint(canvas, e));
+    const onLeave = () => session.pointerLeave();
+    const onCancel = () => session.pointerCancel();
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      session.wheel(localPoint(canvas, e), e.deltaY);
+      // deltaMode 1 is lines and 2 is pages (common in Firefox). Convert to approximate pixels.
+      const pixels = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+      session.wheel(localPoint(canvas, e), pixels);
     };
     const onContextMenu = (e: Event) => e.preventDefault();
 
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerdown', onDown);
     canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointerleave', onLeave);
+    canvas.addEventListener('pointercancel', onCancel);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('contextmenu', onContextMenu);
+    // Browser zoom changes the device pixel ratio without resizing the container.
+    window.addEventListener('resize', resize);
 
     return () => {
       unsubscribe();
@@ -67,8 +75,11 @@ export function CanvasViewport() {
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointerup', onUp);
+      canvas.removeEventListener('pointerleave', onLeave);
+      canvas.removeEventListener('pointercancel', onCancel);
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('contextmenu', onContextMenu);
+      window.removeEventListener('resize', resize);
     };
   }, []);
 

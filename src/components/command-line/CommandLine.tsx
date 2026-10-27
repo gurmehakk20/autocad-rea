@@ -31,6 +31,10 @@ export function CommandLine() {
           placeholder="Command, x,y  @dx,dy  @dist<angle  or number"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            // Escape also reaches the app-wide handler, which cancels the tool. Discard unsent text here too.
+            if (e.key === 'Escape') setText('');
+          }}
         />
       </form>
     </section>
