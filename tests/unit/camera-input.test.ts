@@ -102,4 +102,19 @@ describe('command-line input', () => {
   it('treats empty input as confirm', () => {
     expect(parseInput('   ', null)).toEqual({ kind: 'empty' });
   });
+
+  // Regression: "1e999" matches the number pattern but reads as Infinity. A rotate by that angle built a NaN matrix and
+  // threw an uncaught error out of the session. The parser now refuses non-finite values once, at the boundary.
+  it('refuses numbers and points that overflow to Infinity', () => {
+    for (const text of ['1e999', '-1e999', '1e999,0', '0,-1e999', '@1e999,0', '@1e999<45', '@10<1e999']) {
+      const result = parseInput(text, vec2(0, 0));
+      expect(result.kind, text).toBe('invalid');
+      expect(result.kind === 'invalid' && result.reason, text).toMatch(/finite/);
+    }
+  });
+
+  it('still accepts large but finite values', () => {
+    expect(parseInput('1e300', null)).toEqual({ kind: 'number', value: 1e300 });
+    expect(parseInput('1e300,-1e300', null)).toEqual({ kind: 'point', point: vec2(1e300, -1e300) });
+  });
 });

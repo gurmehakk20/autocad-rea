@@ -12,6 +12,15 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable;
 }
 
+const TEXT_INPUT_TYPES = new Set(['', 'text', 'search', 'url', 'tel', 'email', 'password', 'number']);
+
+/** True when Backspace edits text in the target. Everywhere else some engines treat it as "go back". */
+function acceptsText(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable || target.tagName === 'TEXTAREA') return true;
+  return target instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(target.type);
+}
+
 function isButton(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && target.tagName === 'BUTTON';
 }
@@ -53,6 +62,8 @@ export function useShortcuts(report: (content: ReportContent) => void): void {
       if (key === 'F8') return handled(e, () => session.setSnap({ ortho: !session.snap.ortho }));
       if (key === 'F9') return handled(e, () => session.setSnap({ grid: !session.snap.grid }));
 
+      // Playwright's WebKit navigates back on Backspace from a dropdown, which discards the drawing.
+      if (key === 'Backspace' && typing && !acceptsText(e.target)) e.preventDefault();
       if (typing) return;
       if (key === 'Delete' || key === 'Backspace') return handled(e, () => session.deleteSelection());
       if (key === 'Enter' && !onButton) return handled(e, () => session.confirm());

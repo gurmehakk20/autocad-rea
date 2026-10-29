@@ -54,6 +54,29 @@ async function dragWorld(page: Page, from: [number, number], to: [number, number
   await page.mouse.up();
 }
 
+/** Times real pointer-move handling plus the next painted frame, 120 times across the canvas. */
+async function pointerFrameMs(page: Page): Promise<number> {
+  return page.evaluate(async () => {
+    const canvas = document.querySelector('.viewport-canvas') as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await nextFrame();
+    const start = performance.now();
+    const steps = 120;
+    for (let i = 0; i < steps; i++) {
+      canvas.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          clientX: rect.left + (rect.width * (i + 1)) / (steps + 1),
+          clientY: rect.top + rect.height / 2 + Math.sin(i / 7) * 80,
+        }),
+      );
+      await nextFrame();
+    }
+    return (performance.now() - start) / steps;
+  });
+}
+
 async function entityCount(page: Page): Promise<number> {
   const dd = page.locator('.sidebar .facts dt', { hasText: 'Entities' }).locator('xpath=following-sibling::dd[1]');
   return Number(await dd.innerText());
@@ -148,6 +171,30 @@ test.describe('viewport', () => {
     await expect.poll(() => statusX(page)).toBe('—');
   });
 
+  // Pixel check that circles render where expected and nothing joins them. Canvas joins the end of one sub-path to
+  // the start of the next arc in the same path, so this catches any future change that shares one path between entities.
+  test('neighbouring circles are drawn without a stray line between them', async ({ page }) => {
+    await cmd(page, 'C', '-10,0', '2', 'C', '10,0', '2');
+    await page.mouse.move(20, 400); // keep the crosshair off the canvas
+    const brightness = await page.evaluate(() => {
+      const canvas = document.querySelector('.viewport-canvas') as HTMLCanvasElement;
+      const ctx = canvas.getContext('2d')!;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = canvas.width / rect.width;
+      const brightest = (worldX: number): number => {
+        const x = Math.round((rect.width / 2 + worldX * 20) * dpr);
+        const y = Math.round((rect.height / 2) * dpr);
+        const data = ctx.getImageData(x - 4, y - 4, 9, 9).data;
+        let max = 0;
+        for (let i = 0; i < data.length; i += 4) max = Math.max(max, data[i]!);
+        return max;
+      };
+      return { onCircle: brightest(-8), between: brightest(0) };
+    });
+    expect(brightness.onCircle, 'the circle itself is drawn').toBeGreaterThan(150);
+    expect(brightness.between, 'nothing is drawn between the circles').toBeLessThan(120);
+  });
+
   test('canvas backing store matches the device pixel ratio', async ({ browser }) => {
     const context = await browser.newContext({ deviceScaleFactor: 2, viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
@@ -217,7 +264,9 @@ test.describe('selection and editing', () => {
     await drawLine(page, '-5,0', '5,0');
     await selectAtCentre(page);
     await page.keyboard.press('t');
-    await clickWorld(page, 0, 0);
+    // Typed, not clicked: Firefox and WebKit truncate pointer coordinates to whole pixels, so a click lands up to
+    // half a pixel (0.025 units at 20 px per unit) from the intended point. The line being rotated is excluded from snapping.
+    await cmd(page, '0,0');
     await cmd(page, '90');
     await expect(properties(page)).toContainText('0, -5');
     await expect(properties(page)).toContainText('0, 5');
@@ -240,6 +289,20 @@ test.describe('selection and editing', () => {
     await page.keyboard.press('Backspace');
     await page.keyboard.press('Escape');
     expect(await entityCount(page)).toBe(1);
+  });
+
+  test('Backspace on a dropdown or checkbox does not navigate away from the drawing', async ({ page }) => {
+    await drawLine(page, '-5,0', '5,0');
+    await selectAtCentre(page);
+    const url = page.url();
+    const controls = [properties(page).getByRole('combobox'), properties(page).getByRole('checkbox', { name: 'By layer' })];
+    for (const control of controls) {
+      await control.focus();
+      await page.keyboard.press('Backspace');
+      await page.waitForTimeout(200); // history navigation is asynchronous
+      expect(page.url()).toBe(url);
+      await expect(properties(page).getByRole('heading', { name: 'Line' })).toBeVisible();
+    }
   });
 
   test('typing a tool letter while a dropdown has focus does not switch tools', async ({ page }) => {
@@ -478,6 +541,7 @@ test.describe('scale', () => {
     test.setTimeout(180_000);
     const t0 = Date.now();
     const lap = (label: string) => console.log(`[scale] ${label}: ${Date.now() - t0} ms`);
+    const emptyFrameMs = await pointerFrameMs(page);
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: 'Import DXF' }).click();
     await (await chooser).setFiles({ name: 'big.dxf', mimeType: 'application/dxf', buffer: Buffer.from(bigDxf(5000)) });
@@ -489,33 +553,19 @@ test.describe('scale', () => {
     await page.getByRole('button', { name: 'Zoom extents' }).click();
     lap('zoom extents');
 
-    // Time real pointer-move handling plus the next painted frame, 120 times across the canvas.
-    const perFrameMs = await page.evaluate(async () => {
-      const canvas = document.querySelector('.viewport-canvas') as HTMLCanvasElement;
-      const rect = canvas.getBoundingClientRect();
-      const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      await nextFrame();
-      const start = performance.now();
-      const steps = 120;
-      for (let i = 0; i < steps; i++) {
-        canvas.dispatchEvent(
-          new PointerEvent('pointermove', {
-            bubbles: true,
-            clientX: rect.left + (rect.width * (i + 1)) / (steps + 1),
-            clientY: rect.top + rect.height / 2 + Math.sin(i / 7) * 80,
-          }),
-        );
-        await nextFrame();
-      }
-      return (performance.now() - start) / steps;
-    });
+    const perFrameMs = await pointerFrameMs(page);
     lap('pointer loop done');
-    test.info().annotations.push({ type: 'perf', description: `5,000 entities: ${perFrameMs.toFixed(1)} ms per pointer-move frame` });
-    // Not a performance claim: a regression guard that fails if interaction becomes unusable.
-    expect(perFrameMs).toBeLessThan(100);
+    const extraMs = perFrameMs - emptyFrameMs;
+    test.info().annotations.push({
+      type: 'perf',
+      description: `5,000 entities: ${perFrameMs.toFixed(1)} ms per pointer-move frame (${emptyFrameMs.toFixed(1)} ms empty)`,
+    });
+    // Not a performance claim: a regression guard that fails if the entities make interaction unusable. It bounds
+    // the cost the entities add, because an empty canvas already costs 45 ms per frame in Playwright's WebKit.
+    expect(extraMs).toBeLessThan(100);
 
     // The drawing is still editable at this size: select everything and delete it, then undo.
-    console.log(`[scale] ${perFrameMs.toFixed(1)} ms per pointer-move frame`);
+    console.log(`[scale] ${perFrameMs.toFixed(1)} ms per pointer-move frame, ${emptyFrameMs.toFixed(1)} ms with an empty drawing`);
     await page.keyboard.press('Control+a');
     lap('select all');
     await page.keyboard.press('Delete');
