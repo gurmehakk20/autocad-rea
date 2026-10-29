@@ -1,7 +1,7 @@
 import type { Drawing } from '../document/Drawing';
 import type { Entity, EntityId } from '../entities/types';
 import { boundsFromPoints, boundsIntersect, expandBounds } from '../geometry/bounds';
-import { entityBounds, intersectEntities, snapCandidatesOf } from '../entities/geometry';
+import { intersectEntities, snapCandidatesOf } from '../entities/geometry';
 import { type Vec2, distance, vec2 } from '../geometry/vector';
 
 export interface SnapSettings {
@@ -78,7 +78,11 @@ function findObjectSnap(
   exclude: ReadonlySet<EntityId> | undefined,
 ): SnapResult | null {
   const candidates: { kind: Exclude<SnapKind, 'grid' | 'none'>; point: Vec2; d: number }[] = [];
-  const entities = drawing.entities().filter((e) => drawing.isEditable(e) && !exclude?.has(e.id));
+  // Every snap candidate within `tolerance` of the cursor lies inside this box, and the index covers snap points. The pad absorbs rounding.
+  const pad = tolerance + 1e-9 * Math.max(1, Math.abs(cursor.x), Math.abs(cursor.y));
+  const entities = drawing
+    .entitiesIn({ minX: cursor.x - pad, minY: cursor.y - pad, maxX: cursor.x + pad, maxY: cursor.y + pad })
+    .filter((e) => drawing.isEditable(e) && !exclude?.has(e.id));
 
   for (const entity of entities) {
     for (const candidate of snapCandidatesOf(entity)) {
@@ -89,7 +93,7 @@ function findObjectSnap(
   }
 
   if (settings.intersection) {
-    for (const { point, d } of nearbyIntersections(entities, cursor, tolerance)) {
+    for (const { point, d } of nearbyIntersections(drawing, entities, cursor, tolerance)) {
       candidates.push({ kind: 'intersection', point, d });
     }
   }
@@ -102,13 +106,14 @@ function findObjectSnap(
 
 /** Intersections within `tolerance` of the cursor. Only entities whose bounds reach the cursor are compared. */
 function nearbyIntersections(
+  drawing: Drawing,
   entities: readonly Entity[],
   cursor: Vec2,
   tolerance: number,
 ): { point: Vec2; d: number }[] {
   const reach = expandBounds(boundsFromPoints([cursor])!, tolerance);
   const near = entities.filter((e) => {
-    const b = entityBounds(e);
+    const b = drawing.boundsOf(e.id);
     return !!b && boundsIntersect(b, reach);
   });
   const hits: { point: Vec2; d: number }[] = [];

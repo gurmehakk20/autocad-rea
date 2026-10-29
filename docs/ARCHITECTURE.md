@@ -17,6 +17,7 @@ EditorSession (src/state/EditorSession.ts)      ← no React, no DOM
 Drawing (src/core/document/Drawing.ts)          ← the only place that changes entities
    ▼
 Entities + geometry (src/core/entities, src/core/geometry)   ← pure functions
+Spatial index (src/core/spatial)                              ← R-tree owned by Drawing
 
 I/O (src/io): native JSON format, DXF import/export — talk to Drawing only through loadParts / entities()
 
@@ -46,6 +47,15 @@ Viewport (src/viewport): Camera (pure transform), Renderer (Canvas 2D, reads Ren
 - A `Layer` has a name, colour, visibility and lock state. Layer 0 always exists and cannot be deleted or renamed.
 - Entity colour is `#rrggbb` or `null` (ByLayer).
 
+### Spatial index
+
+`Drawing` owns an R-tree (`src/core/spatial/rtree.ts`, ADR 0007) and a cache of each entity's exact bounds. Both are updated only inside `apply` and `loadParts`, so a failed batch rolls them back with the entities. The tree stores each entity's *reach*: its bounds united with its snap points, because an arc's centre can lie outside the arc.
+
+- `entitiesIn(area)` returns a superset of the entities touching `area`, in creation order. Callers still run their exact test. A search that covers the whole tree returns `entities()` and skips the tree.
+- `forEachEntity` visits entities without copying. Do not mutate the drawing during the visit.
+- `boundsOf(id)` returns the cached exact bounds.
+- A `batch` of only removes, or only inserts at strictly ascending positions, is applied in one pass, so deleting or restoring many entities is not quadratic.
+
 ### Mutations and undo
 
 Every change is a `Mutation`: `insert`, `remove`, `replace`, `put-layer`, `delete-layer`, `set-units`, or `batch`. `Drawing.apply(m)` performs the change and returns its inverse. `History` stores pairs of `(forward, backward)` mutations.
@@ -62,7 +72,7 @@ Tools never touch React or the canvas. They commit through `ToolContext.history`
 
 ## Snapping and selection
 
-- **Object snap** candidates come from `snapCandidatesOf` (endpoints, midpoints, centres). **Intersection** snap uses `intersectEntities` on entities whose bounds reach the cursor. Priority: endpoint, intersection, midpoint, centre, then grid. Ties are broken by distance.
+- **Object snap** candidates come from `snapCandidatesOf` (endpoints, midpoints, centres) for the entities the index returns near the cursor. **Intersection** snap uses `intersectEntities` on those entities whose bounds reach the cursor. Priority: endpoint, intersection, midpoint, centre, then grid. Ties are broken by distance.
 - **Grid snap** rounds to the nearest grid point when no object snap applies.
 - **Ortho** constrains the rubber band to the dominant axis from the base point. It applies only when no object snap or grid point was chosen.
 - **Selection** uses pick (topmost pickable entity within tolerance) and rectangles. A window (left to right) takes entities fully inside. A crossing (right to left) takes entities that are inside or whose outline touches the rectangle.
@@ -91,6 +101,8 @@ Pointer movement therefore never re-renders React. `Renderer.draw` takes a `Rend
 | Entities and document mutations | `tests/unit/document.test.ts` | Vitest |
 | Snapping and selection | `tests/unit/snap-select.test.ts` | Vitest |
 | Camera and command parsing | `tests/unit/camera-input.test.ts` | Vitest |
+| Spatial index against full scans (differential, seeded) | `tests/integration/spatial-index.test.ts` | Vitest |
+| Command history and Tab completion | `tests/integration/command-history.test.ts`, `tests/e2e/command-line.spec.ts` | Vitest, Playwright |
 | Tools and editing flows through the session | `tests/integration/session.test.ts` | Vitest |
 | DXF and native format round trips | `tests/integration/dxf-native.test.ts` | Vitest + fixture |
 | Browser workflows | `tests/e2e/drafting.spec.ts` | Playwright |
@@ -98,6 +110,7 @@ Pointer movement therefore never re-renders React. `Renderer.draw` takes a `Rend
 
 ## Known structural limits
 
-- `Drawing.entities()` copies the entity list. Picking, snapping and drawing call it per operation. Fine at 10,000 entities (see benchmarks), but a spatial index is the next step before large drawings.
-- The `order` array makes removal O(n). Acceptable for now, and recorded in the roadmap.
+- `Drawing.entities()` still copies the list. It is used for file I/O and fit-to-extents, where a snapshot is right. Picking, snapping, rectangle selection and rendering use the index.
+- A single insert or remove splices the `order` array, which is O(n). Bulk deletes and their undo avoid this (see "Spatial index"). The index tree is not rebalanced after many removals, so it loosens until the next `loadParts`.
+- After an insert or remove, the next ordered query rebuilds the creation-order rank map, which is O(n).
 - The DXF reader is not a general DXF parser. Blocks, text, hatches, dimensions and splines are skipped and reported.

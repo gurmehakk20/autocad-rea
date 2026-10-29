@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, type KeyboardEvent, useState } from 'react';
 import { session, useSessionVersion } from '../../state/session';
 
 /** Command input at the bottom. Accepts tool names, aliases, typed coordinates and numbers. */
@@ -11,6 +11,27 @@ export function CommandLine() {
     e.preventDefault();
     session.submitCommand(text);
     setText('');
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // Escape also reaches the app-wide handler, which cancels the tool. Discard unsent text here too.
+    if (e.key === 'Escape') {
+      setText('');
+      session.endRecall();
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      const recalled = e.key === 'ArrowUp' ? session.recallPrevious(text) : session.recallNext();
+      if (recalled !== null) {
+        e.preventDefault();
+        setText(recalled);
+      }
+    } else if (e.key === 'Tab' && !e.shiftKey) {
+      // Tab only completes a command name. Anywhere else it must move focus on, or keyboard users get stuck here.
+      const completed = session.completeInput(text);
+      if (completed !== null) {
+        e.preventDefault();
+        setText(completed);
+      }
+    }
   };
 
   return (
@@ -30,11 +51,11 @@ export function CommandLine() {
           spellCheck={false}
           placeholder="Command, x,y  @dx,dy  @dist<angle  or number"
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            // Escape also reaches the app-wide handler, which cancels the tool. Discard unsent text here too.
-            if (e.key === 'Escape') setText('');
+          onChange={(e) => {
+            session.endRecall();
+            setText(e.target.value);
           }}
+          onKeyDown={onKeyDown}
         />
       </form>
     </section>

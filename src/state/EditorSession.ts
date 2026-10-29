@@ -20,6 +20,8 @@ import { DrawingFileError, parseDrawing, serializeDrawing } from '../io/serializ
 import { DxfFileError, importDxf } from '../io/dxf/read';
 import { exportDxf } from '../io/dxf/write';
 import { type Camera, DEFAULT_CAMERA, type ViewSize, fitBounds, panByPixels, screenToWorld, zoomAtPixel } from '../viewport/camera';
+import { completeCommand } from './commands';
+import { InputHistory } from './input-history';
 import { type ParsedInput, parseInput } from './input-parse';
 
 /** Screen-space pixels that a press must travel before it counts as a drag. */
@@ -82,6 +84,9 @@ export class EditorSession {
   private panning: { screen: Vec2 } | null = null;
   private spaceHeld = false;
   private logLines: string[] = [];
+  private readonly inputs = new InputHistory();
+  /** The prefix whose matches the last Tab listed without being able to extend it. */
+  private lastListedPrefix: string | null = null;
   private viewListeners = new Set<Listener>();
   private uiListeners = new Set<Listener>();
   private uiVersion = 0;
@@ -309,8 +314,42 @@ export class EditorSession {
     this.afterToolAction();
   }
 
+  /** Up arrow in the command line: older input, or null when there is none to recall. `current` is kept as the draft. */
+  recallPrevious(current: string): string | null {
+    return this.inputs.previous(current);
+  }
+
+  /** Down arrow: newer input, then the draft. Null when not recalling. */
+  recallNext(): string | null {
+    return this.inputs.next();
+  }
+
+  /** Called when the user edits the field, which ends recall. */
+  endRecall(): void {
+    this.inputs.reset();
+  }
+
+  /**
+   * Tab in the command line. Returns the text to show, or null when Tab should keep its normal job of moving focus.
+   * When several commands match, they are listed in the log. If the text cannot grow (it is already the longest shared
+   * prefix), the first Tab lists the matches and a second Tab on the same text returns null, so the field never traps Tab.
+   */
+  completeInput(text: string): string | null {
+    const completion = completeCommand(text);
+    if (!completion) {
+      this.lastListedPrefix = null;
+      return null;
+    }
+    const stuck = completion.text === text.trim().toUpperCase();
+    if (stuck && this.lastListedPrefix === completion.text) return null;
+    this.lastListedPrefix = stuck ? completion.text : null;
+    if (completion.candidates.length > 1) this.message(completion.candidates.join('  '));
+    return completion.text;
+  }
+
   /** Typed input from the command line, a point, a number, or a command name. */
   submitCommand(text: string): void {
+    this.inputs.push(text);
     const trimmed = text.trim();
     if (trimmed !== '') this.logLines = [...this.logLines, `> ${trimmed}`].slice(-LOG_LIMIT);
     const parsed: ParsedInput = parseInput(trimmed, this.toolState.basePoint);

@@ -203,6 +203,76 @@ Section numbers follow the project brief.
 - [ ] Bounded history
 - [ ] Firefox and Safari testing
 
+## Milestone 2: usability and precision
+
+Plan and evidence: [M2-PLAN.md](M2-PLAN.md). Items change to `[x]` only after the check named on the line has run.
+
+### WP-A. Browser matrix
+- [ ] CI has run once on GitHub (precondition)
+- [~] Firefox and WebKit projects in `playwright.config.ts` (added and run locally; the CI workflow does not use them yet)
+- [x] Rotate test enters the base point by typed coordinates (root cause: WebKit and Firefox truncate pointer coordinates)
+- [x] Backspace on a focused dropdown or checkbox no longer navigates away, with a regression test (fails without the fix in WebKit)
+- [ ] Line-based wheel zoom test (Firefox path)
+- [ ] Middle-button pan test on all engines
+- [~] Intermittent failures (Firefox DPR and locked-layer once each; WebKit copy and rotate tests, both 30 s test timeouts that passed on retry) look like load timeouts under parallel workers; the slowness itself is not root-caused
+- [~] Browser suite green on Chromium, Firefox and WebKit locally: 199 passed, 2 flaky (retry) with `--workers=2 --retries=1`. Not run in CI yet
+
+### WP-B. Measure at scale
+- [~] Benchmarks to 100,000 entities and select-all-delete done; the dense-cluster case is not measured
+- [ ] Browser frame time per engine at 5,000 and 50,000 entities
+- [x] Exit targets X1 met at 100,000 entities (pick 0.002 ms, snap 0.003 ms, window select 0.024 ms)
+
+### WP-C. Drawing read API and bulk remove
+- [x] `forEachEntity`, `boundsOf` cache and creation-order ranks (`entitiesIn`)
+- [x] Pick, snap, rectangle selection, select-all and rendering no longer call `entities()` (file I/O and fit-to-extents still do, by design)
+- [x] Bulk remove and bulk insert with exact undo order
+- [x] Tests: cache correctness after insert, remove, replace, undo, redo and failed batch
+
+### WP-D. Spatial index
+- [~] ADR 0007 written (status Proposed); maintainer agreement pending (decision D1)
+- [x] Index inside `Drawing`, updated only in `apply` and `loadParts`
+- [x] Pick, snap, rectangle selection and the renderer use the index
+- [x] Differential test against full scans on random drawings, including undo, redo and a failed batch; three planted index bugs were caught (the test count is smaller than the 30,000 in the plan)
+- [x] 100,000-entity targets met (X1) and `docs/BENCHMARKS.md` updated
+
+### WP-E. Render batching (dropped)
+- [x] Built and measured on three engines: no faster, reverted (see M2-PLAN.md, C5)
+
+### WP-F. Command history and completion
+- [x] `InputHistory` unit tests (cap, duplicates, draft, empty)
+- [x] Up and Down recall in the command line (Chromium, Firefox, WebKit)
+- [x] Tab completion for command names (Chromium, Firefox, WebKit)
+- [x] Tab is not cancelled for empty input, numbers, coordinates, complete commands and Shift+Tab, tested. Found by QA: Tab on an ambiguous prefix that cannot grow trapped focus; fixed (the second Tab is left to the browser), with tests
+
+### WP-G. Editable properties
+- [ ] Line start and end
+- [ ] Circle centre and radius
+- [ ] Arc centre, radius, start and end angle
+- [ ] Validation errors shown at the field, drawing unchanged
+- [ ] No silent rounding: focus and blur without a change leaves the entity identical
+- [ ] One undo step per edit
+
+### WP-H. DXF colour
+- [ ] Layer and entity colour index 10 to 255 imported as the table colour
+- [ ] Layer true colour (group 420) read on import
+- [ ] Layer true colour written on export, one summary warning instead of one per layer
+- [ ] Round-trip property test for random `#rrggbb`
+- [ ] ACI table sourced, noticed in `THIRD_PARTY_NOTICES.md`, and structure tested (maintainer decision D2)
+- [ ] Existing entries for indices 8 and 9 checked against the table
+
+### WP-I. File handles
+- [ ] Open keeps the file handle (native format)
+- [ ] Save writes in place, Save As asks for a file
+- [ ] Cancel is silent, failed write does not mark the drawing saved
+- [ ] Download fallback on Firefox and WebKit, tested
+- [ ] File name shown in the menu bar
+- [ ] Manual pass in Chrome and Edge recorded
+
+### WP-J. Close-out
+- [ ] README, ARCHITECTURE, ROADMAP and BENCHMARKS match what shipped
+- [ ] `npm run check`, `npm run build` and `npm run e2e` pass
+- [ ] QA report attached to the final change
+
 ## Open decisions and housekeeping
 
 - [ ] Owner confirms the MIT licence (ADR 0005 says "owner to confirm")

@@ -1,6 +1,5 @@
 import type { Drawing } from '../core/document/Drawing';
 import { type ArcEntity, type Entity } from '../core/entities/types';
-import { entityBounds } from '../core/entities/geometry';
 import { arcSweep } from '../core/geometry/arc';
 import { type Bounds, boundsIntersect } from '../core/geometry/bounds';
 import type { Vec2 } from '../core/geometry/vector';
@@ -125,10 +124,11 @@ export class Renderer {
 
   private drawEntities(drawing: Drawing, cam: Camera, view: ViewSize, selection: ReadonlySet<string>): void {
     const visible = visibleBounds(cam, view);
-    for (const entity of drawing.entities()) {
+    // Zoomed in, the index returns only what can reach the screen. Zoomed to fit, it returns everything in creation order.
+    for (const entity of drawing.entitiesIn(visible)) {
       const layer = drawing.getLayer(entity.layer);
       if (!layer || !layer.visible) continue;
-      const b = entityBounds(entity);
+      const b = drawing.boundsOf(entity.id);
       if (!b || !boundsIntersect(b, visible)) continue; // culling: skip entities off screen
       this.strokeEntity(entity, drawing.effectiveColor(entity), selection.has(entity.id), false, cam, view);
     }

@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { arch, cpus, platform, release, totalmem } from 'node:os';
 import { describe, it } from 'vitest';
+import { History } from '../../src/core/history/History';
 import { Drawing } from '../../src/core/document/Drawing';
 import type { Entity } from '../../src/core/entities/types';
 import { vec2 } from '../../src/core/geometry/vector';
@@ -15,8 +16,10 @@ import { parseDrawing, serializeDrawing } from '../../src/io/serialization/nativ
  * median timings to docs/BENCHMARKS.md together with the machine they ran on.
  * Run with `npm run bench`.
  */
-const SIZES = [1_000, 10_000];
+const SIZES = [1_000, 10_000, 100_000];
 const WARMUP = 3;
+/** From this size on, operations that touch the whole drawing run 5 samples of 2 calls instead of 15 of 10. */
+const HEAVY_SIZE = 100_000;
 const SAMPLES = 15;
 const ITERATIONS = 10;
 
@@ -36,14 +39,22 @@ function buildDrawing(n: number): Drawing {
   return d;
 }
 
+/** Select-all, Delete, then Ctrl+Z, through the same batch mutations the session uses. */
+function deleteAllAndUndo(drawing: Drawing): void {
+  const history = new History(drawing);
+  const ids = drawing.entities().map((e) => e.id);
+  history.execute({ kind: 'batch', mutations: ids.map((id) => ({ kind: 'remove' as const, id })) }, 'Delete');
+  history.undo();
+}
+
 /** Median milliseconds per call over SAMPLES runs of ITERATIONS calls each. */
-function medianMs(fn: () => unknown): number {
+function medianMs(fn: () => unknown, samplesCount = SAMPLES, iterations = ITERATIONS): number {
   for (let i = 0; i < WARMUP; i++) fn();
   const samples: number[] = [];
-  for (let s = 0; s < SAMPLES; s++) {
+  for (let s = 0; s < samplesCount; s++) {
     const start = performance.now();
-    for (let i = 0; i < ITERATIONS; i++) fn();
-    samples.push((performance.now() - start) / ITERATIONS);
+    for (let i = 0; i < iterations; i++) fn();
+    samples.push((performance.now() - start) / iterations);
   }
   samples.sort((a, b) => a - b);
   return samples[Math.floor(samples.length / 2)]!;
@@ -73,13 +84,16 @@ describe('geometry and file benchmarks', () => {
         ['pick entity', () => pickEntity(drawing, cursor, 0.5)],
         ['object snap', () => findSnap({ drawing, cursor, tolerance: 0.5, settings: DEFAULT_SNAP_SETTINGS })],
         ['window select 50x50', () => selectByRectangle(drawing, vec2(0, 0), vec2(50, 50), 'window')],
+        ['delete all and undo', () => deleteAllAndUndo(drawing)],
         ['export DXF', () => exportDxf(drawing)],
         ['import DXF', () => importDxf(dxf)],
         ['serialize JSON', () => serializeDrawing(drawing)],
         ['parse JSON', () => parseDrawing(native)],
       ];
       for (const [name, fn] of ops) {
-        rows.push(`| ${n} | ${name} | ${medianMs(fn).toFixed(3)} |`);
+        // Whole-file operations take hundreds of milliseconds at this size, so they get fewer repetitions.
+        const heavy = n >= HEAVY_SIZE && !['pick entity', 'object snap', 'window select 50x50'].includes(name);
+        rows.push(`| ${n} | ${name} | ${(heavy ? medianMs(fn, 5, 2) : medianMs(fn)).toFixed(3)} |`);
       }
     }
 
@@ -92,7 +106,7 @@ describe('geometry and file benchmarks', () => {
       '',
       ...environmentLines(),
       '',
-      `Each value is the median of ${SAMPLES} samples of ${ITERATIONS} calls, after ${WARMUP} warm-up runs.`,
+      `Each value is the median of ${SAMPLES} samples of ${ITERATIONS} calls, after ${WARMUP} warm-up runs. At ${HEAVY_SIZE} entities the operations that touch the whole drawing (everything except pick, snap and window select) use 5 samples of 2 calls.`,
       '',
       '| Entities | Operation | Median ms |',
       '|---|---|---|',

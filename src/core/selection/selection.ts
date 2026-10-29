@@ -3,7 +3,7 @@ import { arcExtremePoints } from '../geometry/arc';
 import { type Bounds, boundsContainsBounds, boundsContainsPoint, boundsFromCorners, boundsIntersect } from '../geometry/bounds';
 import { type Vec2, vec2 } from '../geometry/vector';
 import type { Entity, EntityId, LineEntity } from '../entities/types';
-import { distanceToEntity, entityBounds, intersectEntities } from '../entities/geometry';
+import { distanceToEntity, intersectEntities } from '../entities/geometry';
 
 /** Ordered set of selected entity ids. Insertion order is kept for stable previews. */
 export class Selection {
@@ -57,7 +57,9 @@ export class Selection {
  * and locked entities are never picked.
  */
 export function pickEntity(drawing: Drawing, p: Vec2, tolerance: number): Entity | undefined {
-  const entities = drawing.entities();
+  // An entity within `tolerance` of `p` has a point inside this box. The small pad absorbs rounding in the distance test.
+  const pad = tolerance + 1e-9 * Math.max(1, Math.abs(p.x), Math.abs(p.y));
+  const entities = drawing.entitiesIn({ minX: p.x - pad, minY: p.y - pad, maxX: p.x + pad, maxY: p.y + pad });
   for (let i = entities.length - 1; i >= 0; i--) {
     const entity = entities[i]!;
     if (!drawing.isEditable(entity)) continue;
@@ -83,9 +85,9 @@ export function selectByRectangle(
   const rect = boundsFromCorners(corner1, corner2);
   const edges = rectangleEdges(rect);
   const result: EntityId[] = [];
-  for (const entity of drawing.entities()) {
+  for (const entity of drawing.entitiesIn(rect)) {
     if (!drawing.isEditable(entity)) continue;
-    const bounds = entityBounds(entity);
+    const bounds = drawing.boundsOf(entity.id);
     if (!bounds) continue;
     if (mode === 'window') {
       if (boundsContainsBounds(rect, bounds)) result.push(entity.id);
@@ -137,5 +139,9 @@ function rectangleEdges(rect: Bounds): LineEntity[] {
 
 /** Convenience: every pickable entity id. Used by Select All. */
 export function selectableIds(drawing: Drawing): EntityId[] {
-  return drawing.entities().filter((e) => drawing.isEditable(e)).map((e) => e.id);
+  const ids: EntityId[] = [];
+  drawing.forEachEntity((e) => {
+    if (drawing.isEditable(e)) ids.push(e.id);
+  });
+  return ids;
 }
