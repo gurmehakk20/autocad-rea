@@ -7,6 +7,7 @@ import {
   type Mutation,
   layerNameError,
 } from '../core/document/Drawing';
+import { type GeometryField, fieldLabel, withField } from '../core/entities/edit';
 import { unionEntityBounds } from '../core/entities/geometry';
 import type { EntityId } from '../core/entities/types';
 import { History } from '../core/history/History';
@@ -515,6 +516,28 @@ export class EditorSession {
     });
     // Dragging a colour picker fires many events. They merge into one undo step per selection.
     if (this.execute({ kind: 'batch', mutations }, 'Change colour', `entity-colour:${ids.join(',')}`)) this.emitAll();
+  }
+
+  /**
+   * Sets one geometry value of one object from the properties panel. Returns why it was refused, or null on success.
+   * Each edit is its own undo step: typed values are deliberate, so unlike a colour drag they are never merged.
+   */
+  editGeometry(id: EntityId, field: GeometryField, value: number): string | null {
+    const entity = this.drawing.getEntity(id);
+    if (!entity) return this.refuse('That object no longer exists.');
+    if (!this.drawing.isEditable(entity)) return this.refuse(`Layer "${entity.layer}" is hidden or locked.`);
+    const edit = withField(entity, field, value);
+    if ('error' in edit) return this.refuse(edit.error);
+    if (!this.execute({ kind: 'replace', entity: edit.entity }, `Edit ${fieldLabel(field).toLowerCase()}`)) {
+      return 'The change could not be applied.';
+    }
+    this.emitAll();
+    return null;
+  }
+
+  private refuse(reason: string): string {
+    this.message(reason);
+    return reason;
   }
 
   // ---- layers ----------------------------------------------------------------

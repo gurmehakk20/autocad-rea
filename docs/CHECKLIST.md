@@ -245,12 +245,12 @@ Plan and evidence: [M2-PLAN.md](M2-PLAN.md). Items change to `[x]` only after th
 - [x] Tab is not cancelled for empty input, numbers, coordinates, complete commands and Shift+Tab, tested. Found by QA: Tab on an ambiguous prefix that cannot grow trapped focus; fixed (the second Tab is left to the browser), with tests
 
 ### WP-G. Editable properties
-- [ ] Line start and end
-- [ ] Circle centre and radius
-- [ ] Arc centre, radius, start and end angle
-- [ ] Validation errors shown at the field, drawing unchanged
-- [ ] No silent rounding: focus and blur without a change leaves the entity identical
-- [ ] One undo step per edit
+- [x] Line start and end (X and Y each)
+- [x] Circle centre and radius
+- [x] Arc centre, radius, start and end angle (degrees in the UI; unit-tested, not browser-tested)
+- [x] Validation errors shown at the field, drawing and history unchanged
+- [x] No silent rounding: focus and blur without a change records nothing (browser test fails if the guards are removed)
+- [x] One undo step per edit, never merged
 
 ### WP-H. DXF colour
 - [ ] Layer and entity colour index 10 to 255 imported as the table colour

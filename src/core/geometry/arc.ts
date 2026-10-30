@@ -18,7 +18,10 @@ export interface Arc {
 /** Normalises an angle into [0, 2π). */
 export function normalizeAngle(angle: number): number {
   const wrapped = angle % TAU;
-  return wrapped < 0 ? wrapped + TAU : wrapped;
+  if (wrapped >= 0) return wrapped;
+  // A tiny negative angle such as -1e-17 rounds to exactly TAU when TAU is added, which is outside [0, 2π). It is the same angle as 0.
+  const shifted = wrapped + TAU;
+  return shifted >= TAU ? 0 : shifted;
 }
 
 /** Counter-clockwise sweep in [0, 2π). A zero sweep means a degenerate arc. */

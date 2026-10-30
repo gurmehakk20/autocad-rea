@@ -58,3 +58,18 @@ function parseNumeric(text: string, base: Vec2): Extract<ParsedInput, { kind: 'p
   if (PLAIN_NUMBER.test(text)) return { kind: 'number', value: Number(text) };
   return null;
 }
+
+export type FieldNumber = { readonly ok: true; readonly value: number } | { readonly ok: false; readonly reason: string };
+
+/**
+ * Parses the text of a property field. Stricter than the command line: one plain decimal number, no
+ * coordinates, no hex or other forms that `Number()` would accept, and nothing that overflows to Infinity.
+ */
+export function parseFieldNumber(raw: string): FieldNumber {
+  const text = raw.trim();
+  if (text === '') return { ok: false, reason: 'Enter a number.' };
+  if (!PLAIN_NUMBER.test(text)) return { ok: false, reason: `"${text}" is not a number.` };
+  const value = Number(text);
+  if (!Number.isFinite(value)) return { ok: false, reason: `"${text}" is out of range. Numbers must be finite.` };
+  return { ok: true, value };
+}

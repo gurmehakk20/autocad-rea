@@ -460,3 +460,21 @@ kbd {
   width: 72px;
   font-family: var(--mono);
 }
+
+.field > label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.geometry-fields .row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.field > .field-error {
+  color: var(--danger);
+}
+
+input[aria-invalid='true'] {
+  border-color: var(--danger);
+}

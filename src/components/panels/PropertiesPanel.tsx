@@ -2,6 +2,7 @@ import { DRAWING_UNITS, type DrawingUnits } from '../../core/document/Drawing';
 import { ENTITY_LABELS, type Entity } from '../../core/entities/types';
 import { arcSweep } from '../../core/geometry/arc';
 import { session, useSessionVersion } from '../../state/session';
+import { GeometryFields } from './GeometryFields';
 
 const fmt = (n: number) => (Math.abs(n) < 5e-10 ? '0' : Number(n.toFixed(4)).toString());
 
@@ -88,40 +89,27 @@ export function PropertiesPanel() {
           )}
         </div>
       </div>
-      {single && <Geometry entity={single} />}
+      {single && <GeometryFields entity={single} />}
+      {single && <Facts entity={single} />}
     </section>
   );
 }
 
-function Geometry({ entity }: { entity: Entity }) {
+/** Values derived from the geometry, which are read-only. The editable values are in `GeometryFields`. */
+function Facts({ entity }: { entity: Entity }) {
   switch (entity.type) {
     case 'line':
       return (
         <dl className="facts">
-          <dt>Start</dt>
-          <dd>{fmt(entity.start.x)}, {fmt(entity.start.y)}</dd>
-          <dt>End</dt>
-          <dd>{fmt(entity.end.x)}, {fmt(entity.end.y)}</dd>
           <dt>Length</dt>
           <dd>{fmt(Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y))}</dd>
         </dl>
       );
     case 'circle':
-      return (
-        <dl className="facts">
-          <dt>Centre</dt>
-          <dd>{fmt(entity.center.x)}, {fmt(entity.center.y)}</dd>
-          <dt>Radius</dt>
-          <dd>{fmt(entity.radius)}</dd>
-        </dl>
-      );
+      return null;
     case 'arc':
       return (
         <dl className="facts">
-          <dt>Centre</dt>
-          <dd>{fmt(entity.center.x)}, {fmt(entity.center.y)}</dd>
-          <dt>Radius</dt>
-          <dd>{fmt(entity.radius)}</dd>
           <dt>Sweep</dt>
           <dd>{fmt((arcSweep(entity) * 180) / Math.PI)}°</dd>
         </dl>
