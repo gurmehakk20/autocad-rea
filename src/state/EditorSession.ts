@@ -10,7 +10,7 @@ import {
 import { type GeometryField, fieldLabel, withField } from '../core/entities/edit';
 import { unionEntityBounds } from '../core/entities/geometry';
 import type { EntityId } from '../core/entities/types';
-import { History } from '../core/history/History';
+import { History, type HistoryEntry } from '../core/history/History';
 import { type Vec2, distance } from '../core/geometry/vector';
 import { DEFAULT_SNAP_SETTINGS, type SnapResult, type SnapSettings, findSnap } from '../core/snapping/snap';
 import { Selection, selectableIds } from '../core/selection/selection';
@@ -66,6 +66,13 @@ export interface RenderState {
 }
 
 type Listener = () => void;
+
+/** What `snapshotForSave` returns. */
+export interface SaveSnapshot {
+  readonly text: string;
+  readonly history: History;
+  readonly point: HistoryEntry | undefined;
+}
 
 export class EditorSession {
   drawing = new Drawing();
@@ -672,12 +679,24 @@ export class EditorSession {
     return serializeDrawing(this.drawing);
   }
 
+  /** The file text and the point in history it corresponds to. Pass it back to `markSaved` once the write has finished. */
+  snapshotForSave(): SaveSnapshot {
+    return { text: serializeDrawing(this.drawing), history: this.history, point: this.history.savePoint };
+  }
+
   exportDxfText(): { text: string; warnings: string[] } {
     return exportDxf(this.drawing);
   }
 
-  markSaved(fileName: string | null): void {
-    this.history.markSaved();
+  /**
+   * Records that the drawing was written to `fileName`. With a snapshot, only the state in that snapshot counts as
+   * saved, so edits made while the write was running keep the drawing dirty. If the document was replaced meanwhile
+   * (New, Open), the write no longer describes it and nothing changes.
+   */
+  markSaved(fileName: string | null, snapshot?: SaveSnapshot): void {
+    if (snapshot && snapshot.history !== this.history) return;
+    if (snapshot) this.history.markSavedAt(snapshot.point);
+    else this.history.markSaved();
     if (fileName) this.fileName = fileName;
     this.emitAll();
   }

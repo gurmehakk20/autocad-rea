@@ -87,6 +87,14 @@ Tools never touch React or the canvas. They commit through `ToolContext.history`
 
 Pointer movement therefore never re-renders React. `Renderer.draw` takes a `RenderState` snapshot built by the session, so drawing code never reads mutable state while it runs.
 
+## Saving and opening
+
+`src/app/files.ts` is the only code that talks to the browser file APIs, and `src/app/actions.ts` holds the file handle of the open document. Neither `src/core` nor `src/state` sees a handle.
+
+- With the File System Access API, Open keeps a handle and Save writes to it. Without it, opening uses an `<input type="file">` and saving downloads.
+- The file on disk changes only when the writable stream closes, so a failed write leaves the old contents. The drawing is marked saved only after that, and only up to the state that was serialised (`snapshotForSave`), so edits made while a dialog or permission prompt was open keep it unsaved. A result that arrives after the document was replaced is ignored.
+- The handle belongs to the document: New and DXF import clear it, a failed Open leaves it, and DXF export never touches it.
+
 ## File formats
 
 - **Native format** (`opendraft-drawing`, version 1): JSON with `format`, `version`, `units`, `idSequence`, `layers` and `entities`. `parseDrawing` validates every field before loading anything. Unknown or future versions are rejected with a message. See `src/io/serialization/native.ts`.

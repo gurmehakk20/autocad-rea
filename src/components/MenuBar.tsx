@@ -22,9 +22,10 @@ export function MenuBar({ onReport }: Props) {
       <nav className="button-group" aria-label="Document">
         <button type="button" onClick={newDrawing} title="New drawing (Ctrl+N)">New</button>
         <button type="button" onClick={() => void openNative(onReport)} title="Open drawing (Ctrl+O)">Open</button>
-        <button type="button" onClick={saveNative} title="Save drawing (Ctrl+S)">Save</button>
+        <button type="button" onClick={() => void saveNative(onReport)} title="Save drawing (Ctrl+S)">Save</button>
+        <button type="button" onClick={() => void saveNative(onReport, { saveAs: true })} title="Save drawing as a new file (Ctrl+Shift+S)">Save as</button>
         <button type="button" onClick={() => void openDxf(onReport)} title="Import DXF (Ctrl+I)">Import DXF</button>
-        <button type="button" onClick={() => exportDxf(onReport)} title="Export DXF">Export DXF</button>
+        <button type="button" onClick={() => void exportDxf(onReport)} title="Export DXF">Export DXF</button>
       </nav>
       <nav className="button-group" aria-label="Edit">
         <button type="button" onClick={() => session.undo()} disabled={!session.history.canUndo} title="Undo (Ctrl+Z)">Undo</button>

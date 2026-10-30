@@ -72,7 +72,7 @@ The bottom command line accepts tool names, aliases, coordinates and numbers. It
 | `Del` / `Backspace` | Delete the selection |
 | `Ctrl+Z`, `Ctrl+Y` / `Ctrl+Shift+Z` | Undo, redo |
 | `Ctrl+A` | Select all |
-| `Ctrl+N`, `Ctrl+O`, `Ctrl+S`, `Ctrl+I` | New, open, save, import DXF |
+| `Ctrl+N`, `Ctrl+O`, `Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+I` | New, open, save, save as, import DXF |
 | `F3`, `F7`, `F8`, `F9` | Object snap, grid display, ortho, grid snap |
 | Spacing field in the menu bar | Grid spacing in drawing units (must be positive) |
 | Middle mouse drag, or Space + drag | Pan |
@@ -130,7 +130,8 @@ Round-trip behaviour is covered by tests that use a hand-written DXF fixture (`t
 - **Editing:** there is no trim, extend, offset, fillet, chamfer or text.
 - **DXF:** the reader is not a general DXF parser. Text, dimensions, hatches, blocks, inserts, splines, ellipses and images are skipped and reported.
 - **Colours:** layer true colour on export is not tested against AutoCAD or another third-party reader.
-- **Saving:** Save downloads a file. OpenDraft does not keep a file handle, so Save always writes a new download.
+- **Saving:** In Chrome and Edge (File System Access API, on `localhost` or HTTPS), Open keeps the file and Save writes back to it without a dialog. Save as asks for a new file. In Firefox and Safari, which lack that API, Save and Save as download a file each time. The in-place path is tested with an in-memory file system in Chromium, not with the real browser dialog.
+- **Opening:** Importing a DXF or choosing New forgets the file, so the next Save asks for a location instead of overwriting the old file.
 - **Performance:** geometry operations are measured up to 10,000 entities (see [docs/BENCHMARKS.md](docs/BENCHMARKS.md)), and a 5,000-entity drawing is covered by a browser test. Larger drawings have not been tested. Picking and snapping scan every entity.
 - **Browsers and devices:** automated browser tests run in Chromium only. Touch input is not supported.
 - **Compatibility:** OpenDraft does not claim compatibility with AutoCAD files beyond the subset described above.

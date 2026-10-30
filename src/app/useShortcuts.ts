@@ -44,7 +44,7 @@ export function useShortcuts(report: (content: ReportContent) => void): void {
         if (k === 'z' && !e.shiftKey) return handled(e, () => session.undo());
         if (k === 'y' || (k === 'z' && e.shiftKey)) return handled(e, () => session.redo());
         if (k === 'a' && !typing) return handled(e, () => session.selectAll());
-        if (k === 's') return handled(e, saveNative);
+        if (k === 's') return handled(e, () => void saveNative(report, { saveAs: e.shiftKey }));
         if (k === 'o') return handled(e, () => void openNative(report));
         if (k === 'n') return handled(e, newDrawing);
         if (k === 'i') return handled(e, () => void openDxf(report));

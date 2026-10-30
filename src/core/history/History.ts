@@ -84,8 +84,21 @@ export class History {
     return entry;
   }
 
+  /** The newest history entry now. A save that takes time should record this when it makes the file text. */
+  get savePoint(): HistoryEntry | undefined {
+    return this.undoStack.at(-1);
+  }
+
   markSaved(): void {
     this.savedTop = this.undoStack.at(-1);
+  }
+
+  /**
+   * Marks the drawing as saved at an earlier point. Writing a file can take seconds (a permission prompt, a slow
+   * disk), and edits made meanwhile are not in the file, so the drawing must stay dirty after them.
+   */
+  markSavedAt(point: HistoryEntry | undefined): void {
+    this.savedTop = point;
   }
 
   get isDirty(): boolean {

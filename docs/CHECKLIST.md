@@ -101,7 +101,7 @@ Section numbers follow the project brief.
 - [x] Versioned native format (version 1, future versions rejected)
 - [x] Clear messages for invalid files
 - [x] Unsaved-changes prompt on New, Open, Import, and tab close
-- [~] Save uses download only, with no file handle (File System Access API not used)
+- [x] Save writes in place through a file handle where the browser has the File System Access API, and downloads elsewhere
 
 ## 6H. DXF interoperability
 
@@ -261,12 +261,12 @@ Plan and evidence: [M2-PLAN.md](M2-PLAN.md). Items change to `[x]` only after th
 - [x] Existing entries for indices 8 and 9 checked against the table: both match (#808080, #c0c0c0)
 
 ### WP-I. File handles
-- [ ] Open keeps the file handle (native format)
-- [ ] Save writes in place, Save As asks for a file
-- [ ] Cancel is silent, failed write does not mark the drawing saved
-- [ ] Download fallback on Firefox and WebKit, tested
-- [ ] File name shown in the menu bar
-- [ ] Manual pass in Chrome and Edge recorded
+- [x] Open keeps the file handle (native format)
+- [x] Save writes in place, Save As asks for a file (Ctrl+S, Ctrl+Shift+S, buttons)
+- [x] Cancel is silent; a failed write shows why and does not mark the drawing saved; an edit made during the write keeps the drawing unsaved
+- [x] Download fallback on Firefox and WebKit, tested
+- [x] File name and unsaved mark shown in the menu bar (already present; now tested)
+- [ ] Manual pass in Chrome and Edge recorded (the tests use stand-in pickers backed by the browser file system; the real dialogs and permission prompts are unverified)
 
 ### WP-J. Close-out
 - [ ] README, ARCHITECTURE, ROADMAP and BENCHMARKS match what shipped
