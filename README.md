@@ -110,7 +110,8 @@ Other import rules:
 Colour notes:
 
 - Entity colours are written as true colour and round-trip exactly.
-- Layer colours must be written in the AutoCAD palette. The seven primary colours are exact. Other layer colours are approximated to the nearest one, and the export report says which layers changed.
+- Layer colours are written as true colour too, so they round-trip exactly through this application. Each layer also carries the nearest of the 255 AutoCAD colour indices, which is all a program that ignores true colour on layers will show. The export report says how many layers are outside the index. No third-party program has been tested with this.
+- Imported colour indices 1 to 255 use the AutoCAD table. Index 7 is shown as the workspace's off-white, not pure white, and index 250 is black, which is hard to see on the dark workspace.
 
 Round-trip behaviour is covered by tests that use a hand-written DXF fixture (`tests/fixtures/mixed-sample.dxf`), so the claims above are checked, not assumed.
 
@@ -128,7 +129,7 @@ Round-trip behaviour is covered by tests that use a hand-written DXF fixture (`t
 - **Transforms:** move, copy and rotate only. Scale and mirror are not implemented.
 - **Editing:** there is no trim, extend, offset, fillet, chamfer or text.
 - **DXF:** the reader is not a general DXF parser. Text, dimensions, hatches, blocks, inserts, splines, ellipses and images are skipped and reported.
-- **Colours:** layer colours outside the seven primary AutoCAD colours are approximated on export.
+- **Colours:** layer true colour on export is not tested against AutoCAD or another third-party reader.
 - **Saving:** Save downloads a file. OpenDraft does not keep a file handle, so Save always writes a new download.
 - **Performance:** geometry operations are measured up to 10,000 entities (see [docs/BENCHMARKS.md](docs/BENCHMARKS.md)), and a 5,000-entity drawing is covered by a browser test. Larger drawings have not been tested. Picking and snapping scan every entity.
 - **Browsers and devices:** automated browser tests run in Chromium only. Touch input is not supported.

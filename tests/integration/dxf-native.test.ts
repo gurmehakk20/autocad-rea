@@ -111,17 +111,18 @@ describe('DXF import', () => {
     expect(r.warnings.join('\n')).toMatch(/zero length/);
   });
 
-  it('warns about unsupported units and colour indices', () => {
+  it('warns about unsupported units and invalid colour indices', () => {
     const text = [
       '0', 'SECTION', '2', 'HEADER', '9', '$INSUNITS', '70', '99', '0', 'ENDSEC',
       '0', 'SECTION', '2', 'ENTITIES',
-      '0', 'LINE', '8', '0', '62', '42', '10', '0', '20', '0', '11', '1', '21', '0',
+      '0', 'LINE', '8', '0', '62', '300', '10', '0', '20', '0', '11', '1', '21', '0',
       '0', 'ENDSEC', '0', 'EOF',
     ].join('\n');
     const r = importDxf(text);
     expect(r.drawing.units).toBe('unitless');
     expect(r.warnings.join('\n')).toMatch(/units code 99/);
-    expect(r.warnings.join('\n')).toMatch(/Colour index 42/);
+    // 42 is a valid AutoCAD colour now; only indices outside 1 to 255 are invalid.
+    expect(r.warnings.join('\n')).toMatch(/Colour index 300 is not a valid/);
     expect(r.drawing.entities()[0]?.color).toBeNull();
   });
 
@@ -175,11 +176,12 @@ describe('DXF export and round trip', () => {
     close(arc.radius, 5, 1e-9);
   });
 
-  it('warns when a layer colour cannot be represented in the AutoCAD palette', () => {
+  it('says once how many layer colours are outside the AutoCAD colour index', () => {
     const d = new Drawing();
     d.apply({ kind: 'put-layer', layer: { name: 'Teal', color: '#123456', visible: true, locked: false } });
     const { warnings } = exportDxf(d);
-    expect(warnings.join('\n')).toMatch(/Layer "Teal" colour #123456 was approximated/);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/^1 layer colour\(s\) are not in the AutoCAD colour index/);
   });
 
   it('exports an empty drawing that imports back as empty', () => {

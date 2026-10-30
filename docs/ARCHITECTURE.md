@@ -90,7 +90,7 @@ Pointer movement therefore never re-renders React. `Renderer.draw` takes a `Rend
 ## File formats
 
 - **Native format** (`opendraft-drawing`, version 1): JSON with `format`, `version`, `units`, `idSequence`, `layers` and `entities`. `parseDrawing` validates every field before loading anything. Unknown or future versions are rejected with a message. See `src/io/serialization/native.ts`.
-- **DXF export** uses `@tarikjabiri/dxf`. Layer colours are mapped to the seven primary AutoCAD palette colours. Other colours are approximated and reported. Entity colours are written as true colour and are exact.
+- **DXF export** uses `@tarikjabiri/dxf`. Entity colours and layer colours are written as true colour (group 420) and are exact. A layer also gets the nearest of the 255 ACI indices from `src/io/dxf/aci.ts` as a fallback, and the export report counts layers outside the index.
 - **DXF import** is implemented in `src/io/dxf/read.ts`. It reads `$INSUNITS`, the LAYER table, and LINE, CIRCLE, ARC, and LWPOLYLINE entities. LWPOLYLINE bulge arcs are flattened into straight segments within 5 degrees. Everything else is counted by type and reported in the import report. Nothing is dropped silently.
 
 ## Testing

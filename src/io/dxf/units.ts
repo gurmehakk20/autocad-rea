@@ -1,5 +1,6 @@
 import { Units } from '@tarikjabiri/dxf';
 import type { DrawingUnits } from '../../core/document/Drawing';
+import { ACI_TABLE } from './aci';
 
 /** DXF $INSUNITS codes that OpenDraft understands. Other codes are reported and imported as unitless. */
 export const INSUNITS_TO_DRAWING: Record<number, DrawingUnits> = {
@@ -21,28 +22,26 @@ export const DRAWING_TO_DXF_UNITS: Record<DrawingUnits, Units> = {
 };
 
 /**
- * The AutoCAD Colour Index entries used for layers. Only the seven primary
- * colours are mapped to exact hex values, because the full 256-entry table is
- * not needed for the supported subset. Other indices are approximated and reported.
+ * Index 7 is drawn white on a dark background and black on a light one. This workspace is dark and draws
+ * default linework in this off-white, so index 7 maps to it rather than to the table's pure white.
  */
-export const ACI_PALETTE: Record<number, string> = {
-  1: '#ff0000',
-  2: '#ffff00',
-  3: '#00ff00',
-  4: '#00ffff',
-  5: '#0000ff',
-  6: '#ff00ff',
-  7: '#e6e6e6',
-  8: '#808080',
-  9: '#c0c0c0',
-};
+const ACI_SEVEN = '#e6e6e6';
 
-/** Nearest primary ACI colour (1–7) for an arbitrary hex colour. */
+/**
+ * Display colour of each ACI index 1 to 255 (`aci.ts`, with index 7 as above). Index 0 (ByBlock) and 256
+ * (ByLayer) are not colours and are absent. Index 250 is black in the source palette and is hard to see on
+ * the dark workspace; it is kept as the palette defines it.
+ */
+export const ACI_PALETTE: Record<number, string> = Object.fromEntries(
+  ACI_TABLE.map((hex, index) => [index, index === 7 ? ACI_SEVEN : hex]).slice(1),
+);
+
+/** The ACI index whose colour is closest to `hex`. An exact match wins, and the lowest index wins a tie. */
 export function nearestAci(hex: string): number {
   const target = parseHex(hex);
   let best = 7;
   let bestDistance = Infinity;
-  for (let index = 1; index <= 7; index++) {
+  for (let index = 1; index <= 255; index++) {
     const candidate = parseHex(ACI_PALETTE[index]!);
     const d = (candidate[0] - target[0]) ** 2 + (candidate[1] - target[1]) ** 2 + (candidate[2] - target[2]) ** 2;
     if (d < bestDistance) {

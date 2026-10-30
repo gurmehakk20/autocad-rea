@@ -12,24 +12,28 @@ export interface DxfExportResult {
 /**
  * Writes the drawing as DXF (AutoCAD R2007 / AC1021 layout written by the library).
  *
- * Supported entities: LINE, CIRCLE, ARC, LWPOLYLINE. Explicit entity colours are
- * written as true colour (group 420) and are exact. Layer colours must use the
- * ACI table, so non-palette layer colours are approximated and reported.
+ * Supported entities: LINE, CIRCLE, ARC, LWPOLYLINE. Explicit entity colours and every layer
+ * colour are written as true colour (group 420), so they are exact for readers that honour it.
+ * A layer also carries the nearest ACI index, which is all a reader that ignores group 420 sees.
  */
 export function exportDxf(drawing: Drawing): DxfExportResult {
   const warnings: string[] = [];
   const writer = new DxfWriter();
   writer.setUnits(DRAWING_TO_DXF_UNITS[drawing.units]);
 
+  let outsideIndex = 0;
   for (const layer of drawing.layers()) {
     const aci = nearestAci(layer.color);
-    if (ACI_PALETTE[aci] !== layer.color.toLowerCase()) {
-      warnings.push(`Layer "${layer.name}" colour ${layer.color} was approximated to an AutoCAD palette colour.`);
-    }
+    if (ACI_PALETTE[aci] !== layer.color.toLowerCase()) outsideIndex++;
     let flags = LayerFlags.None;
     if (!layer.visible) flags |= LayerFlags.Frozen;
     if (layer.locked) flags |= LayerFlags.Locked;
-    writer.addLayer(layer.name, aci, 'CONTINUOUS', flags);
+    writer.addLayer(layer.name, aci, 'CONTINUOUS', flags).trueColor = hexToInt(layer.color);
+  }
+  if (outsideIndex > 0) {
+    warnings.push(
+      `${outsideIndex} layer colour(s) are not in the AutoCAD colour index. They are stored as true colour with the nearest index as a fallback. A program that ignores true colour on layers shows that nearest index.`,
+    );
   }
 
   for (const entity of drawing.entities()) {

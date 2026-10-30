@@ -146,7 +146,7 @@ function readCommon(pairs: Pair[], colourWarnings: Set<number>, warnings: string
   if (palette) return { layer, color: palette };
   if (!colourWarnings.has(index)) {
     colourWarnings.add(index);
-    warnings.push(`Colour index ${index} is not in the supported palette. Entities use their layer colour instead.`);
+    warnings.push(`Colour index ${index} is not a valid AutoCAD colour (1 to 255). Entities use their layer colour instead.`);
   }
   return { layer, color: null };
 }
@@ -342,9 +342,11 @@ function readLayers(tables: Pair[], warnings: string[]): Map<string, Layer> {
     const colourCode = firstNumber(record.pairs, 62) ?? 7;
     const flags = firstNumber(record.pairs, 70) ?? 0;
     const index = Math.abs(colourCode);
-    let color = ACI_PALETTE[index];
+    // True colour (group 420) is exact and takes priority over the index, which only approximates it.
+    const trueColor = firstNumber(record.pairs, 420);
+    let color = trueColor !== undefined ? toHex(trueColor) : ACI_PALETTE[index];
     if (!color) {
-      warnings.push(`Layer "${name}" uses colour index ${index}, which is not supported. The default colour is used.`);
+      warnings.push(`Layer "${name}" uses colour index ${index}, which is not a valid AutoCAD colour (1 to 255). The default colour is used.`);
       color = ACI_PALETTE[7]!;
     }
     layers.set(name, {
