@@ -97,6 +97,39 @@ describe('geometry and file benchmarks', () => {
       }
     }
 
+    // Worst case for snapping: many entities overlap under the cursor, so intersections are tested pair by pair.
+    for (const cluster of [50, 200, 500]) {
+      const drawing = buildDrawing(10_000);
+      const centre = vec2(250, 250);
+      for (let i = 0; i < cluster; i++) {
+        const entity: Entity = {
+          id: drawing.nextId(),
+          type: 'circle',
+          layer: '0',
+          color: null,
+          center: vec2(centre.x + ((i * 7) % 11) * 0.05, centre.y + ((i * 13) % 11) * 0.05),
+          radius: 5 + (i % 7) * 0.01,
+        };
+        drawing.apply({ kind: 'insert', entity, index: drawing.entityCount });
+      }
+      const onRing = vec2(centre.x + 5, centre.y);
+      const label = `10000 + ${cluster} overlapping circles`;
+      rows.push(`| ${label} | pick entity | ${medianMs(() => pickEntity(drawing, onRing, 0.5)).toFixed(3)} |`);
+      rows.push(`| ${label} | object snap | ${medianMs(() => findSnap({ drawing, cursor: onRing, tolerance: 0.5, settings: DEFAULT_SNAP_SETTINGS }), 5, 2).toFixed(3)} |`);
+    }
+
+    // Big shapes that only surround the cursor: their bounds contain it, but they are far from it.
+    for (const rings of [200, 500]) {
+      const drawing = buildDrawing(10_000);
+      for (let i = 1; i <= rings; i++) {
+        const entity: Entity = { id: drawing.nextId(), type: 'circle', layer: '0', color: null, center: vec2(250, 250), radius: i * 2 };
+        drawing.apply({ kind: 'insert', entity, index: drawing.entityCount });
+      }
+      const onRing = vec2(250 + 2 * Math.floor(rings / 2), 250);
+      const label = `10000 + ${rings} concentric circles`;
+      rows.push(`| ${label} | object snap | ${medianMs(() => findSnap({ drawing, cursor: onRing, tolerance: 0.5, settings: DEFAULT_SNAP_SETTINGS }), 5, 2).toFixed(3)} |`);
+    }
+
     const report = [
       '# Benchmark results',
       '',

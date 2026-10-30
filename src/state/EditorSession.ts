@@ -535,6 +535,8 @@ export class EditorSession {
     if (!this.drawing.isEditable(entity)) return this.refuse(`Layer "${entity.layer}" is hidden or locked.`);
     const edit = withField(entity, field, value);
     if ('error' in edit) return this.refuse(edit.error);
+    // Setting a value to what it already is, or to an angle that wraps to it (360 for 0), changes nothing: no undo step.
+    if (JSON.stringify(edit.entity) === JSON.stringify(entity)) return null;
     if (!this.execute({ kind: 'replace', entity: edit.entity }, `Edit ${fieldLabel(field).toLowerCase()}`)) {
       return 'The change could not be applied.';
     }

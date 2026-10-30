@@ -265,3 +265,38 @@ describe('layer colour edge cases', () => {
     expect(nearestAci('#ff0000')).toBe(1);
   });
 });
+
+describe('true colour values outside 0 to 0xFFFFFF (found by QA)', () => {
+  // The old code masked the value with & 0xFFFFFF, so 16777216 became black and 4294967551 became blue, silently.
+  const outOfRange = [0x1000000, 0x2000000 + 0xff0000, 4294967551, -1, 1.5, 1e12];
+
+  it('are reported once and ignored on a layer, which then uses its index colour', () => {
+    for (const value of outOfRange) {
+      const result = importDxf(dxfText([[2, 'x', 70, 0, 62, 5, 420, value]]));
+      expect(result.drawing.getLayer('x')!.color, String(value)).toBe(ACI_PALETTE[5]);
+      expect(result.warnings.filter((w) => /true colour/i.test(w)), String(value)).toHaveLength(1);
+    }
+  });
+
+  it('are reported once per distinct value and ignored on an entity, which then uses its index colour', () => {
+    for (const value of outOfRange) {
+      const result = importDxf(dxfText([], [[62, 3, 420, value], [62, 3, 420, value]]));
+      expect(result.drawing.entities().map((e) => e.color), String(value)).toEqual([ACI_PALETTE[3], ACI_PALETTE[3]]);
+      expect(result.warnings.filter((w) => /true colour/i.test(w)), String(value)).toHaveLength(1);
+    }
+  });
+
+  it('fall back to ByLayer when the entity has no index either', () => {
+    const result = importDxf(dxfText([], [[420, 0x1000000]]));
+    expect(result.drawing.entities()[0]!.color).toBeNull();
+    expect(result.warnings.filter((w) => /true colour/i.test(w))).toHaveLength(1);
+  });
+
+  it('accept the whole valid range, including both ends', () => {
+    const result = importDxf(dxfText([[2, 'lo', 70, 0, 420, 0], [2, 'hi', 70, 0, 420, 0xffffff]], [[420, 0], [420, 0xffffff]]));
+    expect(result.drawing.getLayer('lo')!.color).toBe('#000000');
+    expect(result.drawing.getLayer('hi')!.color).toBe('#ffffff');
+    expect(result.drawing.entities().map((e) => e.color)).toEqual(['#000000', '#ffffff']);
+    expect(result.warnings).toEqual([]);
+  });
+});

@@ -194,7 +194,31 @@ WP-F to WP-I touch different files and can run in parallel after WP-A. WP-F and 
 | File handle write fails halfway | Low | Lost work | Write via `createWritable` and commit on `close()`; mark saved only after close; keep the unsaved prompt |
 | The frame guard flakes under load | Medium | False failures | It already did once (Firefox, 147 ms with parallel workers). The guard bounds added cost at 100 ms against a 3 to 31 ms measurement, and per-browser numbers are recorded, not asserted |
 
-## 7. Decisions needed from the maintainer
+## 7. Results (2026-10-30)
+
+All work packages were built except WP-E, which was tried and dropped. Each was committed after the commit gate and a review.
+
+| Exit criterion | Result |
+|---|---|
+| X1 index targets at 100,000 entities | Met by a wide margin: pick 0.002 ms, snap 0.003 ms, window select 0.024 ms (before: 14.5, 20.8, 13.0 ms). Select-all, delete and undo about 0.67 s. |
+| X2 index equals brute force | 40 differential tests on random drawings and concentric rings, including undo, redo and failed batches. Four planted index bugs: three caught, the fourth is equivalent. |
+| X3 browser suite on three engines | Last complete run with the CI settings (two workers, one retry): 279 passed, 1 flaky (a WebKit timeout that passed on retry), 26 skipped (the Chromium-only file-handle tests on the other two engines), 14.3 minutes; the 3 failures in that run were the QA repro for defect 1 below, fixed afterwards and re-run on its own with the properties specs on all three engines (36 passed). The complete suite was not re-run after that one-line fix. The CI matrix is written but has not run on GitHub. |
+| X4 per-browser frame cost | 5,000 entities add about 3.5 ms (Chromium), 4 ms (Firefox) and 31 ms (WebKit). At 50,000 entities fitted to the screen a frame costs 236, 215 and 575 ms; zoomed in it costs the same as an empty drawing. |
+| X5 history and completion | Done on all three engines; QA found and fixed a Tab focus trap. |
+| X6 geometry editing | Done; unit and browser tests; the unchanged-value guards are mutation-checked. |
+| X7 colour round trip | Exact for 400 random layer and 400 random entity colours and all 255 palette colours. |
+| X8 save in place | Done with stand-in pickers in Chromium and the download fallback on all engines. The real dialogs are unverified. |
+| X9 gates and docs | `npm run check` and `npm run build` pass. |
+
+QA review of work packages G to I found four defects in code written in this milestone, all fixed with regression tests that fail without the fix: (1) a geometry field could not be set to the value it displayed when the real value was tiny (typing 0 over a displayed 0 that was really 1e-13 was silently ignored; also needed `onInput` because React suppresses `onChange` for unchanged text); (2) `saveNative` could leave its in-progress guard set if serialising threw; (3) editing a value to what it already was, or to an angle that wraps to it, recorded a no-op undo step; (4) DXF true colour outside 0 to 16777215 was silently wrapped into a wrong colour and is now reported and ignored. A fifth finding is not from this milestone: `src/state` imports React (`session.ts`) and `src/viewport/camera` (`EditorSession.ts`), which breaks the rule in AGENTS.md. It is on main and is listed in the checklist for the maintainer.
+
+Findings beyond the plan, each with a regression test: `normalizeAngle(-1e-17)` returned 2π; non-finite input reached the rotate tool; Backspace navigated WebKit away; Tab on an ambiguous prefix trapped focus; a save that took time could mark later edits as saved. Snapping with large shapes around the cursor was quadratic and is now filtered by distance (concentric circles: 2.6 and 7.4 ms down to about 0.6 and 0.3 ms, single runs). Dense true overlap is still quadratic.
+
+A regression I introduced and then caught: after WP-G, WP-H and WP-I I ran only the new specs, not the whole browser suite. The next full run failed 30 tests across the three engines. Causes: the properties panel now shows coordinates in input fields, so older tests that read "Start 0, 0" as text saw nothing (WP-G); a new "Save as" button made `getByRole('button', {name: 'Save'})` ambiguous (WP-I); and Chromium now takes the File System Access path for Open and Export, which raises no `filechooser` or `download` event (WP-I). Fixes were in the tests, not the product: field-value assertions to the old four-decimal precision, exact button names, and a helper that forces the download fallback for the tests that exercise that path. One assertion (ortho) was rewritten as "the end is level with the start", because Firefox and WebKit truncate the base click to a whole pixel and the old "y is exactly 0" encoded Chromium's sub-pixel behaviour. Lesson applied: the full suite runs after every work package from now on.
+
+What changed from the plan: the ACI table had to be sourced (ezdxf, MIT) and turned out to be a dark-background palette, so index 7 is overridden. The dense-cluster benchmark found the quadratic snap case. The 50,000-entity browser run showed rendering is the next bottleneck, not picking.
+
+## 8. Decisions needed from the maintainer
 
 Work proceeds on the recommended default for each until told otherwise.
 

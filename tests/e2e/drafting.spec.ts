@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { forceDownloadFallback } from './helpers';
 
 /** Number shown next to "Entities" in the properties panel when nothing is selected. */
 async function entityCount(page: Page): Promise<number> {
@@ -17,6 +18,8 @@ async function clickCanvas(page: Page, dx: number, dy: number): Promise<void> {
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.viewport-canvas')).toBeVisible();
+  // These tests use the file input and downloads, which is how Firefox and Safari work. Chromium would use native pickers.
+  await forceDownloadFallback(page);
 });
 
 test('shows the empty drawing state and the tool palette', async ({ page }) => {
@@ -70,7 +73,7 @@ test('saves a native drawing file that reports the expected format', async ({ pa
   await page.getByLabel('Command input').press('Enter');
 
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   const download = await downloadPromise;
   const path = await download.path();
   const text = await (await import('node:fs/promises')).readFile(path!, 'utf8');
@@ -123,7 +126,7 @@ test('saves a drawing and reopens it through the file chooser', async ({ page })
   expect(await entityCount(page)).toBe(1);
 
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   const path = await (await downloadPromise).path();
   const fs = await import('node:fs/promises');
   const saved = await fs.readFile(path!, 'utf8');
@@ -134,7 +137,7 @@ test('saves a drawing and reopens it through the file chooser', async ({ page })
   expect(await entityCount(page)).toBe(0);
 
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Open' }).click();
+  await page.getByRole('button', { name: 'Open', exact: true }).click();
   await (await chooser).setFiles({ name: 'saved.opendraft.json', mimeType: 'application/json', buffer: Buffer.from(saved) });
   await expect(page.locator('.command-history')).toContainText('Opened saved.opendraft.json');
   expect(await entityCount(page)).toBe(1);
@@ -151,11 +154,11 @@ test('refuses to open a file that is not a drawing and keeps the current drawing
 
   // Save first so the drawing is clean and Open goes straight to the file chooser.
   const saved = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await saved;
 
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Open' }).click();
+  await page.getByRole('button', { name: 'Open', exact: true }).click();
   await (await chooser).setFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{"hello": 1}') });
   await expect(page.locator('.command-history')).toContainText('Cannot open bad.json');
   expect(await entityCount(page)).toBe(1);

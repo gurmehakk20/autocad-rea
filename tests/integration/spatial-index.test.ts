@@ -559,3 +559,61 @@ describe('bulk remove and insert give the same drawing as one by one', () => {
     expect(selection.size).toBe(fast.entityCount);
   });
 });
+
+describe('intersection snapping with entities that only surround the cursor', () => {
+  // Concentric circles all have the cursor inside their bounds, but only the one nearest the cursor can take part
+  // in an intersection within tolerance. The prefilter by distance must not change any result.
+  function concentric(): Drawing {
+    const d = new Drawing();
+    for (let i = 1; i <= 60; i++) {
+      d.apply({ kind: 'insert', index: d.entityCount, entity: { id: d.nextId(), type: 'circle', layer: '0', color: null, center: vec2(0, 0), radius: i * 3 } });
+    }
+    for (let k = 0; k < 6; k++) {
+      const a = (k * Math.PI) / 6 + 0.1;
+      d.apply({
+        kind: 'insert',
+        index: d.entityCount,
+        entity: { id: d.nextId(), type: 'line', layer: '0', color: null, start: vec2(-200 * Math.cos(a), -200 * Math.sin(a)), end: vec2(200 * Math.cos(a), 200 * Math.sin(a)) },
+      });
+    }
+    return d;
+  }
+
+  it('matches the scan with the cursor on, near and away from the crossings', () => {
+    const d = concentric();
+    const r = rng(404);
+    for (let n = 0; n < 400; n++) {
+      const ring = 1 + Math.floor(r() * 60);
+      const line = Math.floor(r() * 6);
+      const a = (line * Math.PI) / 6 + 0.1;
+      const spread = logUniform(r, 0.001, 3);
+      const cursor = vec2(ring * 3 * Math.cos(a) + between(r, -spread, spread), ring * 3 * Math.sin(a) + between(r, -spread, spread));
+      const tolerance = logUniform(r, 0.05, 4);
+      expect(findSnap({ drawing: d, cursor, tolerance, settings: DEFAULT_SNAP_SETTINGS }), `case ${n}`).toEqual(refSnap(d, cursor, tolerance));
+    }
+  });
+
+  it('still finds a crossing between a ring and a line while 59 other rings surround the cursor', () => {
+    const d = concentric();
+    const a = 0.1;
+    const exact = vec2(30 * Math.cos(a), 30 * Math.sin(a));
+    const snap = findSnap({ drawing: d, cursor: vec2(exact.x + 0.1, exact.y - 0.1), tolerance: 1, settings: DEFAULT_SNAP_SETTINGS });
+    expect(snap.kind).toBe('intersection');
+    expect(distance(snap.point, exact)).toBeLessThan(1e-9);
+  });
+});
+
+describe('intersection snapping with tolerance 0', () => {
+  it('finds a crossing only when the cursor is exactly on it', () => {
+    const d = new Drawing();
+    const add = (a: Vec2, b: Vec2) =>
+      d.apply({ kind: 'insert', index: d.entityCount, entity: { id: d.nextId(), type: 'line', layer: '0', color: null, start: a, end: b } });
+    add(vec2(0, 0), vec2(10, 10));
+    add(vec2(0, 10), vec2(10, 0));
+    const settings = { ...DEFAULT_SNAP_SETTINGS, endpoint: false, midpoint: false, center: false, grid: false };
+    const on = findSnap({ drawing: d, cursor: vec2(5, 5), tolerance: 0, settings });
+    expect(on.kind).toBe('intersection');
+    expect(distance(on.point, vec2(5, 5))).toBeLessThan(1e-9);
+    expect(findSnap({ drawing: d, cursor: vec2(5.01, 5), tolerance: 0, settings }).kind).not.toBe('intersection');
+  });
+});

@@ -51,7 +51,7 @@ export function importDxf(text: string): DxfImportResult {
   const entities: Entity[] = [];
   let skipped = 0;
   let approximatedBulges = 0;
-  const colourWarnings = new Set<number>();
+  const colourWarnings = new Set<string>();
 
   for (const record of splitRecords(entitySource)) {
     const common = readCommon(record.pairs, colourWarnings, warnings);
@@ -135,17 +135,29 @@ interface Common {
   readonly color: string | null;
 }
 
-function readCommon(pairs: Pair[], colourWarnings: Set<number>, warnings: string[]): Common {
+/** `#rrggbb` for a valid group 420 value, or null when it is not an integer from 0 to 0xFFFFFF. */
+function trueColourHex(value: number): string | null {
+  return Number.isInteger(value) && value >= 0 && value <= 0xffffff ? toHex(value) : null;
+}
+
+function readCommon(pairs: Pair[], colourWarnings: Set<string>, warnings: string[]): Common {
   // A missing or blank layer name means the default layer. A blank name cannot be a layer.
   const layer = firstValue(pairs, 8)?.trim() || DEFAULT_LAYER_NAME;
   const trueColor = firstNumber(pairs, 420);
-  if (trueColor !== undefined) return { layer, color: toHex(trueColor) };
+  if (trueColor !== undefined) {
+    const hex = trueColourHex(trueColor);
+    if (hex) return { layer, color: hex };
+    if (!colourWarnings.has(`true:${trueColor}`)) {
+      colourWarnings.add(`true:${trueColor}`);
+      warnings.push(`True colour ${trueColor} is outside 0 to 16777215 and was ignored.`);
+    }
+  }
   const index = firstNumber(pairs, 62);
   if (index === undefined || index === 0 || index === 256 || index < 0) return { layer, color: null };
   const palette = ACI_PALETTE[index];
   if (palette) return { layer, color: palette };
-  if (!colourWarnings.has(index)) {
-    colourWarnings.add(index);
+  if (!colourWarnings.has(`index:${index}`)) {
+    colourWarnings.add(`index:${index}`);
     warnings.push(`Colour index ${index} is not a valid AutoCAD colour (1 to 255). Entities use their layer colour instead.`);
   }
   return { layer, color: null };
@@ -344,7 +356,11 @@ function readLayers(tables: Pair[], warnings: string[]): Map<string, Layer> {
     const index = Math.abs(colourCode);
     // True colour (group 420) is exact and takes priority over the index, which only approximates it.
     const trueColor = firstNumber(record.pairs, 420);
-    let color = trueColor !== undefined ? toHex(trueColor) : ACI_PALETTE[index];
+    let color: string | null | undefined = trueColor !== undefined ? trueColourHex(trueColor) : null;
+    if (trueColor !== undefined && color === null) {
+      warnings.push(`Layer "${name}" has true colour ${trueColor}, which is outside 0 to 16777215. It was ignored.`);
+    }
+    color ??= ACI_PALETTE[index];
     if (!color) {
       warnings.push(`Layer "${name}" uses colour index ${index}, which is not a valid AutoCAD colour (1 to 255). The default colour is used.`);
       color = ACI_PALETTE[7]!;

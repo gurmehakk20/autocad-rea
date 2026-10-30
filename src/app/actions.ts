@@ -77,9 +77,9 @@ export async function openDxf(report: (content: ReportContent) => void): Promise
 export async function saveNative(report: (content: ReportContent) => void, options: { saveAs?: boolean } = {}): Promise<void> {
   if (saving) return; // a second save would open a second dialog
   saving = true;
-  const snapshot = session.snapshotForSave();
   const suggestedName = session.fileName ?? `drawing${NATIVE_EXTENSION}`;
   try {
+    const snapshot = session.snapshotForSave();
     const result = await saveTextFile({
       suggestedName,
       text: snapshot.text,

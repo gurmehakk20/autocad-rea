@@ -1,7 +1,7 @@
 import type { Drawing } from '../document/Drawing';
 import type { Entity, EntityId } from '../entities/types';
 import { boundsFromPoints, boundsIntersect, expandBounds } from '../geometry/bounds';
-import { intersectEntities, snapCandidatesOf } from '../entities/geometry';
+import { distanceToEntity, intersectEntities, snapCandidatesOf } from '../entities/geometry';
 import { type Vec2, distance, vec2 } from '../geometry/vector';
 
 export interface SnapSettings {
@@ -112,9 +112,13 @@ function nearbyIntersections(
   tolerance: number,
 ): { point: Vec2; d: number }[] {
   const reach = expandBounds(boundsFromPoints([cursor])!, tolerance);
+  // An intersection within `tolerance` of the cursor lies on both entities, so each of them must itself be within
+  // `tolerance` of the cursor. Testing that, not just the bounding box, keeps big shapes that merely surround the
+  // cursor (concentric circles, a frame around the drawing) out of the pairwise loop below. The pad absorbs rounding.
+  const within = tolerance + 1e-9 * Math.max(1, Math.abs(cursor.x), Math.abs(cursor.y));
   const near = entities.filter((e) => {
     const b = drawing.boundsOf(e.id);
-    return !!b && boundsIntersect(b, reach);
+    return !!b && boundsIntersect(b, reach) && distanceToEntity(e, cursor) <= within;
   });
   const hits: { point: Vec2; d: number }[] = [];
   for (let i = 0; i < near.length; i++) {

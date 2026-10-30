@@ -8,7 +8,7 @@ A lightweight, browser-based 2D drafting application. It runs locally, needs no 
 
 ## Status
 
-Milestone 1 (drafting vertical slice) is implemented. See [docs/ROADMAP.md](docs/ROADMAP.md) for what comes next.
+Milestones 1 (drafting vertical slice) and 2 (usability and precision) are implemented, with the open items listed in [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/CHECKLIST.md](docs/CHECKLIST.md). Milestone 2 added a spatial index (100,000-entity drawings stay responsive when zoomed in), command history and completion, geometry editing by value, all 255 AutoCAD colour indices, saving in place, and tests on Chromium, Firefox and WebKit.
 
 | Area | Status |
 |---|---|

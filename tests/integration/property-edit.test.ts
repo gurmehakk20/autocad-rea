@@ -277,3 +277,38 @@ describe('normalizeAngle range (found while testing field edits)', () => {
     expect(formatFieldValue(tinyNegative)).toBe('0');
   });
 });
+
+describe('an edit that changes nothing is not an edit (found by QA)', () => {
+  it('setting an arc angle to 360 when it is 0 records no undo step and leaves the drawing clean', () => {
+    const s = sessionWith(arc());
+    s.history.markSaved();
+    expect(s.editGeometry('e1', 'startAngle', 360)).toBeNull();
+    expect(s.history.canUndo).toBe(false);
+    expect(s.isDirty).toBe(false);
+  });
+
+  it('wrapping an angle to the value it already has, or typing the current value, records nothing', () => {
+    const s = sessionWith({ ...arc(), startAngle: Math.PI / 2, endAngle: Math.PI });
+    expect(s.editGeometry('e1', 'startAngle', 450)).toBeNull();
+    expect(s.editGeometry('e1', 'radius', 4)).toBeNull();
+    expect(s.editGeometry('e1', 'centerX', 1)).toBeNull();
+    expect(s.history.canUndo).toBe(false);
+  });
+
+  it('typing the current value of a line or circle field records nothing', () => {
+    const l = sessionWith(line());
+    expect(l.editGeometry('e1', 'endX', 10)).toBeNull();
+    expect(l.editGeometry('e1', 'startY', 0)).toBeNull();
+    expect(l.history.canUndo).toBe(false);
+    const c = sessionWith(circle());
+    expect(c.editGeometry('e1', 'radius', 5)).toBeNull();
+    expect(c.editGeometry('e1', 'centerX', 2)).toBeNull();
+    expect(c.history.canUndo).toBe(false);
+  });
+
+  it('a real change still records one step', () => {
+    const s = sessionWith(arc());
+    expect(s.editGeometry('e1', 'startAngle', 10)).toBeNull();
+    expect(s.history.entries).toHaveLength(1);
+  });
+});

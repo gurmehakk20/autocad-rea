@@ -4,7 +4,11 @@ export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 30_000,
   fullyParallel: true,
-  reporter: [['list']],
+  // A test that times out under load passes on a retry and is reported as flaky, so it stays visible without failing the run.
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 2 : undefined,
+  forbidOnly: !!process.env.CI,
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'retain-on-failure',

@@ -13,27 +13,35 @@ Each value is the median of 15 samples of 10 calls, after 3 warm-up runs. At 100
 
 | Entities | Operation | Median ms |
 |---|---|---|
-| 1000 | pick entity | 0.010 |
-| 1000 | object snap | 0.006 |
-| 1000 | window select 50x50 | 0.029 |
-| 1000 | delete all and undo | 4.637 |
-| 1000 | export DXF | 2.965 |
-| 1000 | import DXF | 6.038 |
-| 1000 | serialize JSON | 1.153 |
-| 1000 | parse JSON | 3.747 |
-| 10000 | pick entity | 0.005 |
+| 1000 | pick entity | 0.008 |
+| 1000 | object snap | 0.010 |
+| 1000 | window select 50x50 | 0.022 |
+| 1000 | delete all and undo | 3.296 |
+| 1000 | export DXF | 1.755 |
+| 1000 | import DXF | 4.273 |
+| 1000 | serialize JSON | 0.821 |
+| 1000 | parse JSON | 2.649 |
+| 10000 | pick entity | 0.006 |
 | 10000 | object snap | 0.009 |
-| 10000 | window select 50x50 | 0.018 |
-| 10000 | delete all and undo | 61.280 |
-| 10000 | export DXF | 31.575 |
-| 10000 | import DXF | 67.393 |
-| 10000 | serialize JSON | 10.667 |
-| 10000 | parse JSON | 32.818 |
-| 100000 | pick entity | 0.002 |
-| 100000 | object snap | 0.003 |
-| 100000 | window select 50x50 | 0.024 |
-| 100000 | delete all and undo | 670.456 |
-| 100000 | export DXF | 358.147 |
-| 100000 | import DXF | 693.581 |
-| 100000 | serialize JSON | 98.051 |
-| 100000 | parse JSON | 531.991 |
+| 10000 | window select 50x50 | 0.021 |
+| 10000 | delete all and undo | 38.880 |
+| 10000 | export DXF | 25.316 |
+| 10000 | import DXF | 44.035 |
+| 10000 | serialize JSON | 6.395 |
+| 10000 | parse JSON | 24.391 |
+| 100000 | pick entity | 0.001 |
+| 100000 | object snap | 0.002 |
+| 100000 | window select 50x50 | 0.013 |
+| 100000 | delete all and undo | 638.582 |
+| 100000 | export DXF | 351.957 |
+| 100000 | import DXF | 1007.005 |
+| 100000 | serialize JSON | 138.943 |
+| 100000 | parse JSON | 402.437 |
+| 10000 + 50 overlapping circles | pick entity | 0.016 |
+| 10000 + 50 overlapping circles | object snap | 1.355 |
+| 10000 + 200 overlapping circles | pick entity | 0.088 |
+| 10000 + 200 overlapping circles | object snap | 10.849 |
+| 10000 + 500 overlapping circles | pick entity | 0.213 |
+| 10000 + 500 overlapping circles | object snap | 64.842 |
+| 10000 + 200 concentric circles | object snap | 0.093 |
+| 10000 + 500 concentric circles | object snap | 0.185 |

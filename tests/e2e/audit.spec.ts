@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { expectField, forceDownloadFallback, geometryField } from './helpers';
 
 /**
  * Platform audit suite. Each test states what a user should be able to rely on.
@@ -243,9 +244,11 @@ test.describe('selection and editing', () => {
     await page.keyboard.press('m');
     await clickWorld(page, 0, 0);
     await clickWorld(page, 0, 10);
-    await expect(properties(page)).toContainText('-5, 10');
+    await expectField(page, 'Start X', -5);
+    await expectField(page, 'Start Y', 10);
     await page.keyboard.press('Control+z');
-    await expect(properties(page)).toContainText('-5, 0');
+    await expectField(page, 'Start X', -5);
+    await expectField(page, 'Start Y', 0);
   });
 
   test('copy leaves the original and Enter finishes repeated copies', async ({ page }) => {
@@ -268,8 +271,10 @@ test.describe('selection and editing', () => {
     // half a pixel (0.025 units at 20 px per unit) from the intended point. The line being rotated is excluded from snapping.
     await cmd(page, '0,0');
     await cmd(page, '90');
-    await expect(properties(page)).toContainText('0, -5');
-    await expect(properties(page)).toContainText('0, 5');
+    await expectField(page, 'Start X', 0);
+    await expectField(page, 'Start Y', -5);
+    await expectField(page, 'End X', 0);
+    await expectField(page, 'End Y', 5);
   });
 
   test('Delete removes the selection and one undo restores it', async ({ page }) => {
@@ -343,7 +348,12 @@ test.describe('precision aids', () => {
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await clickWorld(page, 2.5, 0);
-    await expect(properties(page)).toContainText('5, 0');
+    // Ortho's guarantee is that the end is level with the start. Firefox and WebKit truncate the base click to a whole
+    // pixel, so the start can sit a few hundredths off zero; the line is still exactly horizontal.
+    const startY = Number(await geometryField(page, 'Start Y').inputValue());
+    expect(Number(await geometryField(page, 'End Y').inputValue())).toBe(startY);
+    expect(Math.abs(startY)).toBeLessThan(0.05);
+    expect(Number(await geometryField(page, 'End X').inputValue())).toBeCloseTo(5, 1);
   });
 
   test('grid spacing can be set from the interface and grid snap (F9) uses it', async ({ page }) => {
@@ -357,8 +367,10 @@ test.describe('precision aids', () => {
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await clickWorld(page, 2, 2);
-    await expect(properties(page)).toContainText('0, 0');
-    await expect(properties(page)).toContainText('4, 4');
+    await expectField(page, 'Start X', 0);
+    await expectField(page, 'Start Y', 0);
+    await expectField(page, 'End X', 4);
+    await expectField(page, 'End Y', 4);
   });
 
   test('a non-positive grid spacing is rejected with a message', async ({ page }) => {
@@ -377,7 +389,8 @@ test.describe('precision aids', () => {
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await clickWorld(page, 8, 3);
-    await expect(properties(page)).toContainText('8, 0');
+    await expectField(page, 'Start X', 8);
+    await expectField(page, 'Start Y', 0);
   });
 });
 
@@ -466,6 +479,11 @@ test.describe('layers', () => {
 // ---- files -----------------------------------------------------------------------------
 
 test.describe('files', () => {
+  // These tests drive the file input and downloads. Chromium would otherwise use its native pickers.
+  test.beforeEach(async ({ page }) => {
+    await forceDownloadFallback(page);
+  });
+
   async function chooseFile(page: Page, button: string, name: string, content: string): Promise<void> {
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: button }).click();
@@ -502,7 +520,8 @@ test.describe('files', () => {
     const dxf = ['0', 'SECTION', '2', 'ENTITIES', '0', 'CIRCLE', '8', '0', '10', '10', '20', '0', '40', '2', '210', '0', '220', '0', '230', '-1', '0', 'ENDSEC', '0', 'EOF'].join('\n');
     await chooseFile(page, 'Import DXF', 'mirrored.dxf', dxf);
     await page.keyboard.press('Control+a');
-    await expect(properties(page)).toContainText('-10, 0');
+    await expectField(page, 'Centre X', -10);
+    await expectField(page, 'Centre Y', 0);
   });
 
   test('DXF entities on a layer with an empty name import without crashing', async ({ page }) => {

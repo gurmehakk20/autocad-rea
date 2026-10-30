@@ -146,8 +146,8 @@ Section numbers follow the project brief.
 - [x] Benchmark with repeatable script (`npm run bench`, writes `docs/BENCHMARKS.md`)
 - [~] Benchmarks cover 1,000 and 10,000 entities only
 - [~] Browser frame time: measured for one 5,000-entity drawing only, and paced by the display refresh
-- [ ] Spatial index for picking, snapping, and selection
-- [~] Bottlenecks identified (entity-list copies, O(n) scans) and recorded in ARCHITECTURE.md; not yet fixed
+- [x] Spatial index for picking, snapping, and selection (milestone 2, ADR 0007)
+- [x] Bottlenecks identified (entity-list copies, O(n) scans) and fixed in milestone 2. Next bottleneck: rendering a fitted 50,000-entity drawing
 
 ## 9. UX and visual design
 
@@ -199,9 +199,9 @@ Section numbers follow the project brief.
 - [x] Behavioural audit with a Playwright suite (40 tests), fuzzing, property tests and a scale test
 - [x] Root cause analysis and fixes for 18 defects, with regression tests for 17. See [AUDIT-REPORT.md](AUDIT-REPORT.md)
 - [ ] REA analysis of the production bundle: timed out at 5 and 20 minutes, no result
-- [ ] Spatial index (picking and snapping still scan every entity)
+- [x] Spatial index (milestone 2)
 - [ ] Bounded history
-- [ ] Firefox and Safari testing
+- [~] Firefox and Playwright WebKit tested (milestone 2). Real Safari on macOS is not tested
 
 ## Milestone 2: usability and precision
 
@@ -209,17 +209,17 @@ Plan and evidence: [M2-PLAN.md](M2-PLAN.md). Items change to `[x]` only after th
 
 ### WP-A. Browser matrix
 - [ ] CI has run once on GitHub (precondition)
-- [~] Firefox and WebKit projects in `playwright.config.ts` (added and run locally; the CI workflow does not use them yet)
+- [x] Firefox and WebKit projects in `playwright.config.ts`, and a three-browser CI matrix with one retry in CI (the workflow has not run on GitHub)
 - [x] Rotate test enters the base point by typed coordinates (root cause: WebKit and Firefox truncate pointer coordinates)
 - [x] Backspace on a focused dropdown or checkbox no longer navigates away, with a regression test (fails without the fix in WebKit)
-- [ ] Line-based wheel zoom test (Firefox path)
-- [ ] Middle-button pan test on all engines
+- [x] Line-based and page-based wheel zoom tests (`tests/e2e/wheel-modes.spec.ts`, all three engines)
+- [x] Middle-button pan test passes on all three engines (it was already in the audit suite)
 - [~] Intermittent failures (Firefox DPR and locked-layer once each; WebKit copy and rotate tests, both 30 s test timeouts that passed on retry) look like load timeouts under parallel workers; the slowness itself is not root-caused
 - [~] Browser suite green on Chromium, Firefox and WebKit locally: 199 passed, 2 flaky (retry) with `--workers=2 --retries=1`. Not run in CI yet
 
 ### WP-B. Measure at scale
-- [~] Benchmarks to 100,000 entities and select-all-delete done; the dense-cluster case is not measured
-- [ ] Browser frame time per engine at 5,000 and 50,000 entities
+- [x] Benchmarks to 100,000 entities, select-all-delete, and dense cases (overlapping and concentric circles). Dense true overlap is still quadratic: 200 circles about 11 ms, 500 about 65 ms
+- [x] Browser frame time per engine at 5,000 and 50,000 entities (`tests/e2e/scale-50k.spec.ts`). Fitted 50,000 entities cost 215 to 575 ms per frame: rendering is the next bottleneck
 - [x] Exit targets X1 met at 100,000 entities (pick 0.002 ms, snap 0.003 ms, window select 0.024 ms)
 
 ### WP-C. Drawing read API and bulk remove
@@ -269,15 +269,16 @@ Plan and evidence: [M2-PLAN.md](M2-PLAN.md). Items change to `[x]` only after th
 - [ ] Manual pass in Chrome and Edge recorded (the tests use stand-in pickers backed by the browser file system; the real dialogs and permission prompts are unverified)
 
 ### WP-J. Close-out
-- [ ] README, ARCHITECTURE, ROADMAP and BENCHMARKS match what shipped
-- [ ] `npm run check`, `npm run build` and `npm run e2e` pass
-- [ ] QA report attached to the final change
+- [x] README, ARCHITECTURE, ROADMAP and BENCHMARKS match what shipped (reviewed against the code; ROADMAP lists what is still open)
+- [~] `npm run check` (667 tests) and `npm run build` pass. The last complete browser run (Chromium, Firefox, Playwright WebKit) was 279 passed, 1 flaky, 26 skipped, with 3 failures that were the QA repro fixed afterwards; after that one-line fix the geometry-field and properties specs were re-run on all three engines (36 passed), but the complete suite was not
+- [x] QA review ran on every part of milestone 2. It found a Tab focus trap and four defects in work packages G to I; all five are fixed with regression tests
 
 ## Open decisions and housekeeping
 
+- [ ] `src/state` breaks an AGENTS.md rule that is already on main: `session.ts` imports React and `EditorSession.ts` imports `src/viewport/camera`. Maintainer to decide whether to move the camera transform into `src/core` and split the React hook out
 - [ ] Owner confirms the MIT licence (ADR 0005 says "owner to confirm")
 - [ ] Owner confirms the `morluto/rea` link: reference, or a mistake?
-- [ ] Initial commit (the repository has `git init` only, nothing committed)
+- [x] Initial commit (the repository has history; this line was stale)
 - [ ] Replace the placeholder project name "OpenDraft" if a different name is wanted
 - [ ] Run the CI workflow on GitHub
 - [ ] Demo GIF for the README
